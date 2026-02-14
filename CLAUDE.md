@@ -52,7 +52,26 @@ The Clan CLI provides commands for machine management, deployment, and secrets. 
 3. Configure SSH keys in the admin service
 4. If using ZeroTier, deploy the controller machine first
 
-## Documentation References
+## Documentation
+
+### Obsidian Vault (Internal Docs)
+
+Project documentation lives in the Obsidian vault under `4. Outputs/Personal/Homelab/`:
+
+- **Infrastructure/**
+  - `Overview.md` - Architecture, technologies, machines summary
+  - `NAS.md` - NAS machine config, storage layout, installed services
+  - `Networking.md` - Network topology, firewall, DNS, Tailscale setup
+  - `Secrets Management.md` - Clan vars, SOPS, how to add secrets
+  - `Adding a New Machine.md` - Step-by-step guide with checklist
+- **Services/**
+  - `Services.md` - Full service catalog with port map
+- **Configs/** - (reserved for config snippets/references)
+- **Troubleshooting/** - (reserved for issue resolution notes)
+
+When making infrastructure changes, keep the corresponding Obsidian docs updated.
+
+### External References
 
 - Clan docs: https://docs.clan.lol
 - Service definitions: https://docs.clan.lol/services/

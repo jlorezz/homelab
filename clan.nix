@@ -34,6 +34,14 @@
     tor = {
       roles.server.tags.nixos = { };
     };
+
+    # Docs: https://docs.clan.lol/25.11/services/official/certificates/
+    # Internal PKI using step-ca for clan SSL/TLS certificates
+    certificates = {
+      roles.ca.machines.nas.settings.tlds = [ "lab" ];
+      roles.default.machines.nas = { };
+    };
+
   };
 
   # Additional NixOS configuration can be added here.

@@ -14,6 +14,13 @@
         "always-on"
       ];
     };
+    desktop = {
+      tags = [
+        "nixos"
+        "desktop"
+        "workstation"
+      ];
+    };
   };
 
   # Docs: See https://docs.clan.lol/services/definition/
@@ -40,6 +47,22 @@
     certificates = {
       roles.ca.machines.nas.settings.tlds = [ "lab" ];
       roles.default.machines.nas = { };
+    };
+
+    # Docs: https://docs.clan.lol/25.11/services/official/syncthing/
+    # Continuous file synchronization across machines
+    syncthing = {
+      roles.peer.machines.nas.settings.folders = {
+        obsidian = {
+          path = "/storage/obsidian";
+        };
+      };
+      # TODO: enable after running `clan vars generate --machine desktop`
+      # roles.peer.machines.desktop.settings.folders = {
+      #   obsidian = {
+      #     path = "/home/jlorezz/obsidian";
+      #   };
+      # };
     };
 
   };

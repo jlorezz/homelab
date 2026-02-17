@@ -60,18 +60,20 @@ in
       Type = "oneshot";
       RemainAfterExit = true;
     };
-    script = let
-      userPath = config.clan.core.vars.generators.postgres-user.files.secret.path;
-      passPath = config.clan.core.vars.generators.postgres-password.files.secret.path;
-    in ''
-      mkdir -p /var/lib/postgres
-      PG_USER=$(cat ${userPath})
-      cat > /var/lib/postgres/secrets.env << EOF
-      POSTGRES_USER=$PG_USER
-      POSTGRES_PASSWORD=$(cat ${passPath})
-      POSTGRES_DB=$PG_USER
-      EOF
-      chmod 600 /var/lib/postgres/secrets.env
-    '';
+    script =
+      let
+        userPath = config.clan.core.vars.generators.postgres-user.files.secret.path;
+        passPath = config.clan.core.vars.generators.postgres-password.files.secret.path;
+      in
+      ''
+        mkdir -p /var/lib/postgres
+        PG_USER=$(cat ${userPath})
+        cat > /var/lib/postgres/secrets.env << EOF
+        POSTGRES_USER=$PG_USER
+        POSTGRES_PASSWORD=$(cat ${passPath})
+        POSTGRES_DB=$PG_USER
+        EOF
+        chmod 600 /var/lib/postgres/secrets.env
+      '';
   };
 }

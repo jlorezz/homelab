@@ -19,10 +19,10 @@
     ./modules/containers/stirling-pdf.nix
     ./modules/containers/homeassistant.nix
     ./modules/containers/postgres.nix
+    ./modules/containers/pgadmin.nix
     ./modules/containers/linkding.nix
     ./modules/containers/homepage.nix
     ./modules/tailscale.nix
-    ./modules/syncthing.nix
     ./modules/netdata.nix
     ./modules/immich.nix
     ./modules/paperless.nix

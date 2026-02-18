@@ -46,10 +46,8 @@
       tailscale serve --bg --https=3000 http://localhost:3000
       # Syncthing
       tailscale serve --bg --https=8384 http://localhost:8384
-
-      # Note: OpenClaw (port 18789) is NOT served via Tailscale Serve.
-      # It is accessed directly via Tailscale IP since trustedInterfaces
-      # already allows all traffic on tailscale0.
+      # OpenClaw
+      tailscale serve --bg --https=18789 http://localhost:18789
     '';
   };
 

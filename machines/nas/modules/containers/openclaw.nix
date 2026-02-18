@@ -7,9 +7,9 @@ let
       mode = "merge";
       providers = {
         ollama = {
-          baseUrl = "http://100.118.57.99:11434/v1";
+          baseUrl = "http://100.118.57.99:11434";
           apiKey = "ollama";
-          api = "openai-completions";
+          api = "ollama";
           models = [
             {
               id = "qwen2.5:32b-instruct-q4_K_M";
@@ -22,8 +22,8 @@ let
                 cacheRead = 0;
                 cacheWrite = 0;
               };
-              contextWindow = 128000;
-              maxTokens = 8192;
+              contextWindow = 32000;
+              maxTokens = 4096;
             }
           ];
         };
@@ -34,6 +34,24 @@ let
         model = {
           primary = "ollama/qwen2.5:32b-instruct-q4_K_M";
         };
+        blockStreamingDefault = "on";
+        blockStreamingBreak = "text_end";
+        blockStreamingChunk = {
+          minChars = 100;
+          maxChars = 1500;
+        };
+        blockStreamingCoalesce = {
+          minChars = 1500;
+          maxChars = 2000;
+          idleMs = 500;
+        };
+        typingMode = "instant";
+        typingIntervalSeconds = 6;
+      };
+    };
+    messages = {
+      inbound = {
+        debounceMs = 0;
       };
     };
     commands = {
@@ -44,12 +62,14 @@ let
       discord = {
         enabled = true;
         groupPolicy = "allowlist";
+        ackReaction = "🤔";
       };
     };
     gateway = {
       port = 18789;
       mode = "local";
       bind = "lan";
+      trustedProxies = [ "10.88.0.0/16" ];
       auth = {
         mode = "token";
         rateLimit = {
@@ -57,6 +77,9 @@ let
           windowMs = 60000;
           lockoutMs = 300000;
         };
+      };
+      controlUi = {
+        dangerouslyDisableDeviceAuth = true;
       };
     };
     plugins = {

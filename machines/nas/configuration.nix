@@ -22,6 +22,7 @@
     ./modules/containers/pgadmin.nix
     ./modules/containers/linkding.nix
     ./modules/containers/homepage.nix
+    ./modules/containers/openclaw.nix
     ./modules/tailscale.nix
     ./modules/netdata.nix
     ./modules/immich.nix

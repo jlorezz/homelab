@@ -13,7 +13,7 @@ in
     environment = {
       TZ = cfg.timezone;
     };
-    environmentFiles = [ "/var/lib/postgres/secrets.env" ];
+    environmentFiles = [ "/run/postgres-secrets/secrets.env" ];
   };
 
   systemd.tmpfiles.rules = [
@@ -66,14 +66,14 @@ in
         passPath = config.clan.core.vars.generators.postgres-password.files.secret.path;
       in
       ''
-        mkdir -p /var/lib/postgres
+        mkdir -p /run/postgres-secrets
         PG_USER=$(cat ${userPath})
-        cat > /var/lib/postgres/secrets.env << EOF
+        cat > /run/postgres-secrets/secrets.env << EOF
         POSTGRES_USER=$PG_USER
         POSTGRES_PASSWORD=$(cat ${passPath})
         POSTGRES_DB=$PG_USER
         EOF
-        chmod 600 /var/lib/postgres/secrets.env
+        chmod 600 /run/postgres-secrets/secrets.env
       '';
   };
 }

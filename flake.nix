@@ -1,6 +1,8 @@
 {
   inputs.clan-core.url = "https://git.clan.lol/clan/clan-core/archive/main.tar.gz";
   inputs.nixpkgs.follows = "clan-core/nixpkgs";
+  inputs.home-manager.url = "github:nix-community/home-manager";
+  inputs.home-manager.inputs.nixpkgs.follows = "nixpkgs";
 
   outputs =
     {
@@ -16,7 +18,9 @@
         imports = [ ./clan.nix ];
         specialArgs = { inherit inputs; };
 
-        # Customize nixpkgs
+        # pkgsForSystem is intentionally disabled: Clan's system auto-detection
+        # evaluates this before the machine's hostPlatform is known, causing a
+        # circular dependency. allowUnfree is set per-machine in configuration.nix.
         # pkgsForSystem =
         #   system:
         #   import nixpkgs {
@@ -24,7 +28,7 @@
         #     config = {
         #       allowUnfree = true;
         #     };
-        #     overlays = [];
+        #     overlays = [ ];
         #   };
       };
     in

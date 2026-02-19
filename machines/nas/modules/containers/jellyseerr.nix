@@ -6,7 +6,7 @@ in
 {
   virtualisation.oci-containers.containers.jellyseerr = {
     image = "fallenbagel/jellyseerr:3.0.1";
-    ports = [ "5055:5055" ];
+    ports = [ "127.0.0.1:5055:5055" ];
     volumes = [
       "${cfg.storage.containerDataPath}/jellyseerr:/app/config"
     ];
@@ -24,5 +24,4 @@ in
     "d ${cfg.storage.containerDataPath}/jellyseerr 0700 root root -"
   ];
 
-  networking.firewall.allowedTCPPorts = [ 5055 ];
 }

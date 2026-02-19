@@ -2,11 +2,13 @@
 
 let
   cfg = config.qnoxslab;
+  mkClanSecret = import ../../lib/mkClanSecret.nix;
+  mkSecretsEnv = import ../../lib/mkSecretsEnv.nix { inherit config; };
 in
 {
   virtualisation.oci-containers.containers.postgres = {
     image = "postgres:17";
-    ports = [ "5433:5432" ];
+    ports = [ "127.0.0.1:5433:5432" ];
     volumes = [
       "${cfg.storage.containerDataPath}/postgres:/var/lib/postgresql/data"
     ];
@@ -20,60 +22,24 @@ in
     "d ${cfg.storage.containerDataPath}/postgres 0700 999 999 -"
   ];
 
-  networking.firewall.allowedTCPPorts = [ 5433 ];
-
-  # Clan vars generators for Postgres credentials
-  clan.core.vars.generators.postgres-user = {
-    prompts.value = {
+  clan.core.vars.generators =
+    mkClanSecret {
+      name = "postgres-user";
       description = "PostgreSQL superuser username";
-      type = "line";
-    };
-    files.secret = {
-      secret = true;
-      neededFor = "services";
-    };
-    script = ''
-      cat $prompts/value > $out/secret
-    '';
-  };
-
-  clan.core.vars.generators.postgres-password = {
-    prompts.value = {
+      promptType = "line";
+    }
+    // mkClanSecret {
+      name = "postgres-password";
       description = "PostgreSQL superuser password";
-      type = "hidden";
     };
-    files.secret = {
-      secret = true;
-      neededFor = "services";
-    };
-    script = ''
-      cat $prompts/value > $out/secret
-    '';
+}
+// mkSecretsEnv {
+  name = "postgres";
+  vars = {
+    POSTGRES_USER = "postgres-user";
+    POSTGRES_PASSWORD = "postgres-password";
   };
-
-  # Generate secrets environment file before container starts
-  systemd.services.postgres-secrets = {
-    description = "Generate PostgreSQL secrets environment file";
-    wantedBy = [ "podman-postgres.service" ];
-    before = [ "podman-postgres.service" ];
-    serviceConfig = {
-      Type = "oneshot";
-      RemainAfterExit = true;
-    };
-    script =
-      let
-        userPath = config.clan.core.vars.generators.postgres-user.files.secret.path;
-        passPath = config.clan.core.vars.generators.postgres-password.files.secret.path;
-      in
-      ''
-        mkdir -p /run/postgres-secrets
-        PG_USER=$(cat ${userPath})
-        cat > /run/postgres-secrets/secrets.env << EOF
-        POSTGRES_USER=$PG_USER
-        POSTGRES_PASSWORD=$(cat ${passPath})
-        POSTGRES_DB=$PG_USER
-        EOF
-        chmod 600 /run/postgres-secrets/secrets.env
-      '';
-  };
+  extraLines = [
+    "POSTGRES_DB=$(cat ${config.clan.core.vars.generators.postgres-user.files.secret.path})"
+  ];
 }

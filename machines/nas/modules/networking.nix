@@ -36,12 +36,13 @@ in
       allowedTCPPorts = [
         22 # SSH
         53 # DNS
-        3000 # AdGuard Home web interface
+        50000 # Torrent incoming peers
       ];
       allowedUDPPorts = [
         53 # DNS
         1900 # DLNA/UPnP discovery
         7359 # Jellyfin client discovery
+        50000 # Torrent incoming peers
       ];
     };
   };

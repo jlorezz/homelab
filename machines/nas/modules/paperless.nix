@@ -2,11 +2,12 @@
 
 let
   cfg = config.qnoxslab;
+  mkClanSecret = import ../lib/mkClanSecret.nix;
 in
 {
   services.paperless = {
     enable = true;
-    address = "0.0.0.0";
+    address = "127.0.0.1";
     port = 28981;
     mediaDir = "/storage/documents/media";
     consumptionDir = "/storage/documents/consume";
@@ -25,20 +26,8 @@ in
     "d /storage/documents/consume 0750 paperless paperless -"
   ];
 
-  networking.firewall.allowedTCPPorts = [ 28981 ];
-
-  # Admin password secret via Clan vars
-  clan.core.vars.generators.paperless-admin-password = {
-    prompts.value = {
-      description = "Paperless-ngx admin password";
-      type = "hidden";
-    };
-    files.secret = {
-      secret = true;
-      neededFor = "services";
-    };
-    script = ''
-      cat $prompts/value > $out/secret
-    '';
+  clan.core.vars.generators = mkClanSecret {
+    name = "paperless-admin-password";
+    description = "Paperless-ngx admin password";
   };
 }

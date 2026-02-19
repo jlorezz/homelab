@@ -5,12 +5,11 @@ let
 in
 {
   virtualisation.oci-containers.containers.excalidraw = {
-    image = "excalidraw/excalidraw:latest";
-    ports = [ "3030:80" ];
+    image = "excalidraw/excalidraw:0.18.0";
+    ports = [ "127.0.0.1:3030:80" ];
     environment = {
       TZ = cfg.timezone;
     };
   };
 
-  networking.firewall.allowedTCPPorts = [ 3030 ];
 }

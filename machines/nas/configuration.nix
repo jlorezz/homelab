@@ -4,6 +4,9 @@
   ...
 }:
 
+let
+  mkClanSecret = import ./lib/mkClanSecret.nix;
+in
 {
   imports = [
     ./hardware-configuration.nix
@@ -12,22 +15,11 @@
     ./modules/dns.nix
     ./modules/media.nix
     ./modules/containers
-    ./modules/containers/portainer.nix
-    ./modules/containers/jellyseerr.nix
-    ./modules/containers/flaresolverr.nix
-    ./modules/containers/excalidraw.nix
-    ./modules/containers/stirling-pdf.nix
-    ./modules/containers/homeassistant.nix
-    ./modules/containers/postgres.nix
-    ./modules/containers/pgadmin.nix
-    ./modules/containers/linkding.nix
-    ./modules/containers/homepage.nix
-    ./modules/containers/openclaw.nix
     ./modules/tailscale.nix
     ./modules/netdata.nix
     ./modules/immich.nix
     ./modules/paperless.nix
-
+    ./modules/syncthing.nix
   ];
 
   # ===========================================
@@ -37,7 +29,6 @@
   boot.loader.grub = {
     enable = true;
     device = "/dev/nvme0n1";
-    useOSProber = true;
   };
 
   # ===========================================
@@ -84,23 +75,15 @@
   # Secrets
   # ===========================================
 
-  clan.core.vars.generators.jlorezz-password = {
-    prompts.value = {
-      description = "Hashed password for user jlorezz (generate with: mkpasswd -m sha-512)";
-      type = "hidden";
-    };
-    files.secret = {
-      secret = true;
-      neededFor = "activation";
-    };
-    script = ''
-      cat $prompts/value > $out/secret
-    '';
+  clan.core.vars.generators = mkClanSecret {
+    name = "jlorezz-password";
+    description = "Hashed password for user jlorezz (generate with: mkpasswd -m sha-512)";
+    neededFor = "activation";
   };
 
   # ===========================================
   # State Version
   # ===========================================
 
-  system.stateVersion = "26.05";
+  system.stateVersion = "24.11";
 }

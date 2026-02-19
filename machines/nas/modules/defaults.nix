@@ -25,6 +25,12 @@ in
       };
     };
 
+    tailscaleHostname = lib.mkOption {
+      type = lib.types.str;
+      default = "nas.tail9065b4.ts.net";
+      description = "Tailscale MagicDNS hostname for this machine";
+    };
+
     timezone = lib.mkOption {
       type = lib.types.str;
       default = "Europe/Berlin";

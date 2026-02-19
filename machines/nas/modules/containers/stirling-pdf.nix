@@ -6,7 +6,7 @@ in
 {
   virtualisation.oci-containers.containers.stirling-pdf = {
     image = "stirlingtools/stirling-pdf:2.4.6";
-    ports = [ "8088:8080" ];
+    ports = [ "127.0.0.1:8088:8080" ];
     volumes = [
       "${cfg.storage.containerDataPath}/stirling-pdf/data:/usr/share/tessdata"
       "${cfg.storage.containerDataPath}/stirling-pdf/config:/configs"
@@ -26,5 +26,4 @@ in
     "d ${cfg.storage.containerDataPath}/stirling-pdf/logs 0700 root root -"
   ];
 
-  networking.firewall.allowedTCPPorts = [ 8088 ];
 }

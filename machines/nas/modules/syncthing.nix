@@ -6,7 +6,7 @@
     group = "users";
     dataDir = "/storage/obsidian";
     configDir = "/home/jlorezz/.config/syncthing";
-    guiAddress = "0.0.0.0:8384";
+    guiAddress = "127.0.0.1:8384";
     overrideDevices = false;
     overrideFolders = false;
     settings.options.urAccepted = -1;
@@ -16,11 +16,9 @@
     "d /storage/obsidian 0750 jlorezz users -"
   ];
 
+  # Sync ports open for LAN device discovery — GUI access via Tailscale only
   networking.firewall = {
-    allowedTCPPorts = [
-      8384
-      22000
-    ];
+    allowedTCPPorts = [ 22000 ];
     allowedUDPPorts = [
       22000
       21027

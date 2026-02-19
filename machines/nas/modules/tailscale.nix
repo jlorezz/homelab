@@ -1,4 +1,29 @@
-{ pkgs, ... }:
+{
+  lib,
+  pkgs,
+  ...
+}:
+
+let
+  # Declarative Tailscale Serve map: HTTPS port -> local service port
+  serveMap = {
+    "443" = 3001; # Homepage
+    "8443" = 8096; # Jellyfin
+    "3000" = 3000; # AdGuard Home
+    "8384" = 8384; # Syncthing
+    "2283" = 2283; # Immich
+    "28981" = 28981; # Paperless
+    "19999" = 19999; # Netdata
+    "5055" = 5055; # Jellyseerr
+    "9443" = 9443; # Portainer
+    "8123" = 8123; # Home Assistant
+  };
+
+  serveCommands = lib.mapAttrsToList (
+    httpsPort: localPort:
+    "tailscale serve --bg --https=${httpsPort} http://localhost:${toString localPort}"
+  ) serveMap;
+in
 {
   services.tailscale = {
     enable = true;
@@ -32,22 +57,18 @@
     };
     path = [ pkgs.tailscale ];
     script = ''
-      # Wait for tailscale to be connected
-      tailscale status --json | head -c 0 2>/dev/null || sleep 5
+      # Wait for tailscale to be connected (30s timeout)
+      for i in $(seq 1 30); do
+        if tailscale status --json > /dev/null 2>&1; then
+          break
+        fi
+        sleep 1
+      done
 
       # Reset stale serve configs before applying declarative set
       tailscale serve reset
 
-      # Homepage
-      tailscale serve --bg --https=443 http://localhost:3001
-      # Jellyfin
-      tailscale serve --bg --https=8443 http://localhost:8096
-      # AdGuard Home
-      tailscale serve --bg --https=3000 http://localhost:3000
-      # Syncthing
-      tailscale serve --bg --https=8384 http://localhost:8384
-      # OpenClaw
-      tailscale serve --bg --https=18789 http://localhost:18789
+      ${lib.concatStringsSep "\n" serveCommands}
     '';
   };
 

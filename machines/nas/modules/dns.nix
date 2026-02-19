@@ -1,5 +1,6 @@
 { config, pkgs, ... }:
 let
+  mkClanSecret = import ../lib/mkClanSecret.nix;
   # Centralized blocklist definitions
   blocklists = [
     {
@@ -148,18 +149,8 @@ in
     '';
   };
 
-  # Clan vars generator for AdGuard admin password (bcrypt hash)
-  clan.core.vars.generators.adguard-password-hash = {
-    prompts.value = {
-      description = "AdGuard Home admin password bcrypt hash (generate with: htpasswd -nbB '' 'yourpassword' | cut -d: -f2)";
-      type = "hidden";
-    };
-    files.secret = {
-      secret = true;
-      neededFor = "services";
-    };
-    script = ''
-      cat $prompts/value > $out/secret
-    '';
+  clan.core.vars.generators = mkClanSecret {
+    name = "adguard-password-hash";
+    description = "AdGuard Home admin password bcrypt hash (generate with: htpasswd -nbB '' 'yourpassword' | cut -d: -f2)";
   };
 }

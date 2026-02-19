@@ -21,5 +21,4 @@ in
     "d ${cfg.storage.containerDataPath}/homeassistant 0700 root root -"
   ];
 
-  networking.firewall.allowedTCPPorts = [ 8123 ];
 }

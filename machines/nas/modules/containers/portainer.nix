@@ -5,7 +5,7 @@ let
 in
 {
   virtualisation.oci-containers.containers.portainer = {
-    image = "portainer/portainer-ce:2.38.1";
+    image = "portainer/portainer-ce:2.39.8"; # LTS release
     ports = [ "127.0.0.1:9443:9443" ];
     volumes = [
       "/run/podman/podman.sock:/var/run/docker.sock:ro"

@@ -44,18 +44,6 @@ in
       description = "Jellyfin API key for Homepage dashboard";
     }
     // mkClanSecret {
-      name = "homepage-qbittorrent-password";
-      description = "qBittorrent password for Homepage dashboard";
-    }
-    // mkClanSecret {
-      name = "homepage-radarr-key";
-      description = "Radarr API key for Homepage dashboard";
-    }
-    // mkClanSecret {
-      name = "homepage-sonarr-key";
-      description = "Sonarr API key for Homepage dashboard";
-    }
-    // mkClanSecret {
       name = "homepage-adguard-password";
       description = "AdGuard Home password for Homepage dashboard";
     };
@@ -71,9 +59,6 @@ in
   name = "homepage";
   vars = {
     HOMEPAGE_VAR_JELLYFIN_KEY = "homepage-jellyfin-key";
-    HOMEPAGE_VAR_QBITTORRENT_PASSWORD = "homepage-qbittorrent-password";
-    HOMEPAGE_VAR_RADARR_KEY = "homepage-radarr-key";
-    HOMEPAGE_VAR_SONARR_KEY = "homepage-sonarr-key";
     HOMEPAGE_VAR_ADGUARD_PASSWORD = "homepage-adguard-password";
   };
 }

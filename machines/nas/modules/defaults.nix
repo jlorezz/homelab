@@ -61,9 +61,6 @@ in
       "d ${cfg.storage.mediaPath} 0775 root media -"
       "d ${cfg.storage.mediaPath}/movies 0775 root media -"
       "d ${cfg.storage.mediaPath}/tv 0775 root media -"
-      "d ${cfg.storage.mediaPath}/downloads 0775 root media -"
-      "d ${cfg.storage.mediaPath}/downloads/complete 0775 qbittorrent media -"
-      "d ${cfg.storage.mediaPath}/downloads/incomplete 0775 qbittorrent media -"
     ];
   };
 }

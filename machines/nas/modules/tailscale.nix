@@ -14,7 +14,6 @@ let
     "2283" = 2283; # Immich
     "28981" = 28981; # Paperless
     "19999" = 19999; # Netdata
-    "5055" = 5055; # Jellyseerr
     "9443" = 9443; # Portainer
     "8123" = 8123; # Home Assistant
   };

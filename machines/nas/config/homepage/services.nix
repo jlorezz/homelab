@@ -21,45 +21,6 @@
             enableBlocks: true
             enableNowPlaying: true
 
-      - Jellyseerr:
-          icon: jellyseerr.png
-          href: https://${tailscaleHostname}:5055
-          description: Media Requests
-
-  - Downloads:
-      - qBittorrent:
-          icon: qbittorrent.png
-          href: http://${nasIP}:8080
-          description: Torrent Client
-          widget:
-            type: qbittorrent
-            url: http://${nasIP}:8080
-            username: qnoxs
-            password: {{HOMEPAGE_VAR_QBITTORRENT_PASSWORD}}
-
-      - Radarr:
-          icon: radarr.png
-          href: http://${nasIP}:7878
-          description: Movie Management
-          widget:
-            type: radarr
-            url: http://${nasIP}:7878
-            key: {{HOMEPAGE_VAR_RADARR_KEY}}
-
-      - Sonarr:
-          icon: sonarr.png
-          href: http://${nasIP}:8989
-          description: TV Show Management
-          widget:
-            type: sonarr
-            url: http://${nasIP}:8989
-            key: {{HOMEPAGE_VAR_SONARR_KEY}}
-
-      - Prowlarr:
-          icon: prowlarr.png
-          href: http://${nasIP}:9696
-          description: Indexer Management
-
   - Tools:
       - AdGuard Home:
           icon: adguard-home.png
@@ -95,11 +56,6 @@
           icon: linkding.png
           href: http://${nasIP}:9090
           description: Bookmark Manager
-
-      - FlareSolverr:
-          icon: cloudflare.png
-          href: http://${nasIP}:8191
-          description: CloudFlare Bypass
 
       - Netdata:
           icon: netdata.png

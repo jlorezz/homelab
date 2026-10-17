@@ -7,6 +7,11 @@ The checked-in Deno imports and lock use Commonlib 0.1.34, matching LiveSync
 `compat.patch` supports an empty/root vault prefix and filters decrypted note
 paths after loading them. Filtering protected metadata paths before decryption
 can reject valid notes. Internal files remain excluded unless explicitly allowed.
+It also adds `excludePrefixes`: the hub drops every change under those vault
+folders in both directions. `Private/` (meeting notes) therefore stays encrypted
+in CouchDB and is never written to `/storage/obsidian` or indexed; the bridge
+refuses to start if a plaintext `Private/` directory appears there. Bump the
+image tag in `obsidian.nix` whenever the patch changes, or the cached image wins.
 The provisioning script creates an unlocked milestone document before the bridge
 starts: without it the upstream bridge marks the remote empty and skips its watch.
 

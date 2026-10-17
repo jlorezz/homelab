@@ -2,7 +2,7 @@
 
 let
   secrets = config.clan.core.vars.generators.obsidian-sync.files;
-  bridgeImage = "localhost/livesync-bridge:5645cf6a74e8-commonlib34-v1";
+  bridgeImage = "localhost/livesync-bridge:5645cf6a74e8-commonlib34-v2";
   bridgeSource = pkgs.fetchFromGitHub {
     owner = "vrtmrz";
     repo = "livesync-bridge";
@@ -117,6 +117,11 @@ in
     unitConfig.RequiresMountsFor = [ "/storage/obsidian" ];
     preStart = lib.mkBefore ''
       ${pkgs.util-linux}/bin/mountpoint -q /storage/obsidian
+      # Private/ exists only as encrypted CouchDB documents; a plaintext copy is a leak.
+      if [ -e /storage/obsidian/Private ] || [ -e /storage/obsidian/private ]; then
+        echo "Refusing to start: plaintext Private/ found in /storage/obsidian" >&2
+        exit 1
+      fi
       if ! ${pkgs.docker}/bin/docker image inspect ${bridgeImage} >/dev/null 2>&1; then
         ${pkgs.docker}/bin/docker build --tag ${bridgeImage} ${bridgeBuildSource}
       fi
@@ -137,7 +142,7 @@ in
       from pathlib import Path
       password = Path("${secrets.sync-password.path}").read_text().strip()
       passphrase = Path("${secrets.vault-passphrase.path}").read_text().strip()
-      config = {"peers": [
+      config = {"excludePrefixes": ["Private/"], "peers": [
         {"type": "couchdb", "name": "nas-couchdb", "group": "notes",
          "url": "http://127.0.0.1:5984", "database": "obsidian",
          "username": "notes-sync", "password": password, "baseDir": "",

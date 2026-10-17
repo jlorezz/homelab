@@ -1,4 +1,4 @@
-{ config, ... }:
+{ config, lib, ... }:
 
 let
   cfg = config.qnoxslab;
@@ -14,12 +14,14 @@ let
   widgetsYaml = import ../../config/homepage/widgets.nix;
   bookmarksYaml = import ../../config/homepage/bookmarks.nix;
 in
+lib.mkMerge [
 {
   virtualisation.oci-containers.containers.homepage = {
-    image = "ghcr.io/gethomepage/homepage:v1.10.1";
+    image = "ghcr.io/gethomepage/homepage:v2.5.0";
     volumes = [
       "${cfg.storage.containerDataPath}/homepage:/app/config"
-    ];
+    ] ++ map (name: "/etc/homepage/${name}.yaml:/app/config/${name}.yaml:ro")
+      [ "services" "settings" "widgets" "bookmarks" ];
     environment = {
       TZ = cfg.timezone;
       HOMEPAGE_ALLOWED_HOSTS = "${nasIP}:3001,localhost:3001,${cfg.tailscaleHostname}";
@@ -33,17 +35,12 @@ in
     "d ${cfg.storage.containerDataPath}/homepage 0755 root root -"
   ];
 
-  # Copy Homepage config files before container starts
-  systemd.services.podman-homepage.preStart = ''
-    cp -f /etc/homepage/*.yaml ${cfg.storage.containerDataPath}/homepage/
-  '';
+  systemd.services.docker-homepage.restartTriggers = map
+    (name: config.environment.etc."homepage/${name}.yaml".source)
+    [ "services" "settings" "widgets" "bookmarks" ];
 
   clan.core.vars.generators =
     mkClanSecret {
-      name = "homepage-jellyfin-key";
-      description = "Jellyfin API key for Homepage dashboard";
-    }
-    // mkClanSecret {
       name = "homepage-adguard-password";
       description = "AdGuard Home password for Homepage dashboard";
     };
@@ -55,10 +52,10 @@ in
     "homepage/bookmarks.yaml".text = bookmarksYaml;
   };
 }
-// mkSecretsEnv {
+(mkSecretsEnv {
   name = "homepage";
   vars = {
-    HOMEPAGE_VAR_JELLYFIN_KEY = "homepage-jellyfin-key";
     HOMEPAGE_VAR_ADGUARD_PASSWORD = "homepage-adguard-password";
   };
-}
+})
+]

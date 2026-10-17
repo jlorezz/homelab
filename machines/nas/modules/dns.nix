@@ -52,7 +52,7 @@ in
 {
   services.adguardhome = {
     enable = true;
-    host = "0.0.0.0";
+    host = "127.0.0.1";
     port = 3000;
     mutableSettings = true;
 
@@ -65,6 +65,8 @@ in
       ];
 
       dns = {
+        # Serve DNS only on the host loopback and trusted LAN address.
+        bind_hosts = [ "127.0.0.1" config.qnoxslab.network.nasIP ];
         upstream_dns = [
           # Quad9
           "9.9.9.9"

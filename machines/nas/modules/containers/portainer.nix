@@ -5,10 +5,10 @@ let
 in
 {
   virtualisation.oci-containers.containers.portainer = {
-    image = "portainer/portainer-ce:2.39.8"; # LTS release
+    image = "docker.io/portainer/portainer-ce:2.45.2";
     ports = [ "127.0.0.1:9443:9443" ];
     volumes = [
-      "/run/podman/podman.sock:/var/run/docker.sock:ro"
+      "/var/run/docker.sock:/var/run/docker.sock:ro"
       "${cfg.storage.containerDataPath}/portainer:/data"
     ];
     environment = {

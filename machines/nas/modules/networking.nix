@@ -6,6 +6,9 @@ in
   networking = {
     hostName = "nas";
 
+    # Resolve the local certificate authority before DNS services are ready.
+    hosts.${cfg.network.nasIP} = [ "ca.lab" ];
+
     # Static IP - no NetworkManager needed for servers
     networkmanager.enable = false;
 
@@ -30,6 +33,9 @@ in
       "127.0.0.1"
       "1.1.1.1"
     ];
+    # Keep the fallback resolver when the local DNS service is unavailable.
+    resolvconf.useLocalResolver = false;
+    resolvconf.extraConfig = "resolv_conf_local_only=NO";
 
     firewall = {
       enable = true;
@@ -39,8 +45,6 @@ in
       ];
       allowedUDPPorts = [
         53 # DNS
-        1900 # DLNA/UPnP discovery
-        7359 # Jellyfin client discovery
       ];
     };
   };

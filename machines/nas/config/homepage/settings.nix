@@ -6,6 +6,9 @@
   color: slate
   headerStyle: clean
   layout:
+    Infrastructure:
+      style: row
+      columns: 2
     Media:
       style: row
       columns: 2

@@ -1,13 +1,14 @@
-{ config, ... }:
+{ config, lib, ... }:
 
 let
   cfg = config.qnoxslab;
   mkClanSecret = import ../../lib/mkClanSecret.nix;
   mkSecretsEnv = import ../../lib/mkSecretsEnv.nix { inherit config; };
 in
+lib.mkMerge [
 {
   virtualisation.oci-containers.containers.pgadmin = {
-    image = "dpage/pgadmin4:9.12";
+    image = "docker.io/dpage/pgadmin4:9.18";
     ports = [ "127.0.0.1:5050:80" ];
     volumes = [
       "${cfg.storage.containerDataPath}/pgadmin:/var/lib/pgadmin"
@@ -33,10 +34,11 @@ in
       description = "pgAdmin default login password";
     };
 }
-// mkSecretsEnv {
+(mkSecretsEnv {
   name = "pgadmin";
   vars = {
     PGADMIN_DEFAULT_EMAIL = "pgadmin-email";
     PGADMIN_DEFAULT_PASSWORD = "pgadmin-password";
   };
-}
+})
+]

@@ -27,7 +27,7 @@ in
 
     tailscaleHostname = lib.mkOption {
       type = lib.types.str;
-      default = "nas.tail9065b4.ts.net";
+      default = "nas.tailb80645.ts.net";
       description = "Tailscale MagicDNS hostname for this machine";
     };
 

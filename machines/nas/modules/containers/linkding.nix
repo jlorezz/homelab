@@ -1,13 +1,14 @@
-{ config, ... }:
+{ config, lib, ... }:
 
 let
   cfg = config.qnoxslab;
   mkClanSecret = import ../../lib/mkClanSecret.nix;
   mkSecretsEnv = import ../../lib/mkSecretsEnv.nix { inherit config; };
 in
+lib.mkMerge [
 {
   virtualisation.oci-containers.containers.linkding = {
-    image = "sissbruecker/linkding:1.45.0";
+    image = "docker.io/sissbruecker/linkding:1.47.0";
     ports = [ "127.0.0.1:9090:9090" ];
     volumes = [
       "/var/lib/linkding/data:/etc/linkding/data"
@@ -35,10 +36,11 @@ in
       description = "Linkding superuser password";
     };
 }
-// mkSecretsEnv {
+(mkSecretsEnv {
   name = "linkding";
   vars = {
     LD_SUPERUSER_NAME = "linkding-superuser-name";
     LD_SUPERUSER_PASSWORD = "linkding-superuser-password";
   };
-}
+})
+]

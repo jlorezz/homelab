@@ -1,0 +1,24 @@
+--- a/PeerCouchDB.ts
++++ b/PeerCouchDB.ts
+@@ -218 +218 @@
+-            const baseDir = this.toLocalPath("");
++            const baseDir = this.config.baseDir ? this.toLocalPath("") : "";
+@@ -280,0 +281,5 @@
++                if (!entry.path.startsWith(baseDir)) return;
++                if (entry.path.startsWith("i:")) {
++                    const internalPath = entry.path.substring(2);
++                    if (!this.config.includeInternal?.some(pattern => minimatch(internalPath, pattern, { dot: true }))) return;
++                }
+@@ -297,11 +302 @@
+-            }, (entry) => {
+-                this.setSetting("since", this.man.since);
+-                if (entry.path.indexOf(":") !== -1) {
+-                    if (this.config.includeInternal && entry.path.startsWith("i:")) {
+-                        const stripped = entry.path.substring(2);
+-                        return this.config.includeInternal.some(pattern => minimatch(stripped, pattern, { dot: true }));
+-                    }
+-                    return false;
+-                }
+-                return entry.path.startsWith(baseDir);
+-            });
++            }, () => true);

@@ -97,6 +97,16 @@ discards the admin connection. The server Storage credential can be privileged;
 this process performs download operations only. None of these values belong in
 chat, Git, receipts, CI, notes or coding-agent containers.
 
+The bundled public Supabase Root 2021 CA is used for database TLS; the system CA
+store alone does not validate the shared pooler. Its DER SHA-256 fingerprint is
+`807025ad50d4ed219d2c9c7d299c004f824eb00cf7f65afef607d07b72e6cafa`.
+Source: Supabase's HTTPS download at
+`https://supabase-downloads.s3-ap-southeast-1.amazonaws.com/prod/ssl/prod-ca-2021.crt`.
+The database connection is checked immediately after the first hidden prompt,
+before requesting Storage/B2 credentials. Certificate and hostname verification
+remain enabled. A credential-free NAS probe confirms verified TLS reaches the
+database password request; this does not prove the operator's password is valid.
+
 Provisioning failures report the failing stage and only allowlisted HTTP/SQLSTATE
 codes. The private `provision-status.json` contains the same safe diagnostics;
 provider response bodies, SQL exception text and credential values are excluded.

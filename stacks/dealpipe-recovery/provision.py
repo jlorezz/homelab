@@ -54,6 +54,9 @@ def stage(state, name):
             hint={'28P01':'The database rejected the username/password.',
                   '42501':'The database role lacks permission for this provisioning step.',
                   '42710':'The backup reader already exists; do not recreate or overwrite it.'}.get(code,'Database connection or operation failed; check the session URL, TLS and network access.')
+            if 'certificate verify failed' in str(error).lower():
+                details['reason']='tls-certificate-verification-failed'
+                hint='Supabase database CA/hostname verification failed; inspect the bundled trusted CA. No database password change is indicated.'
         elif isinstance(error,(urllib.error.URLError,TimeoutError,OSError)):
             hint='Network, TLS or local file access failed at this step.'
         state.mkdir(mode=0o700,parents=True,exist_ok=True)
@@ -75,19 +78,20 @@ def main():
     ref=config['project_ref'];host=values.get('host','');user=values.get('user','')
     if values.get('port','5432')!='5432' or not(host=='db.'+ref+'.supabase.co' or(host.endswith('.pooler.supabase.com') and user.endswith('.'+ref))):
         raise SystemExit('Use this production project and direct/session port 5432')
-    values['sslmode']='verify-full';values.setdefault('sslrootcert','system')
-    storage=getpass.getpass('Production Storage server credential (hidden; download only): ').strip()
-    key_id=getpass.getpass('Separate production B2 key ID (hidden): ').strip()
-    key=getpass.getpass('Separate production B2 application key (hidden): ').strip()
-    request=urllib.request.Request('https://api.backblazeb2.com/b2api/v4/b2_authorize_account',headers={'Authorization':'Basic '+base64.b64encode((key_id+':'+key).encode()).decode()})
-    with stage(state,'Backblaze authentication'):
-        with urllib.request.urlopen(request,timeout=30) as response:auth=json.load(response)
-    with stage(state,'Backblaze bucket restriction validation'):
-        validate_b2(auth,config)
-    reader='dealpipe_backup_reader';password=secrets.token_urlsafe(48)
+    values['sslmode']='verify-full';values['sslrootcert']=str(HERE/'supabase-prod-ca-2021.crt')
+    admin=None
     with stage(state,'production database connection'):
         connection=psycopg.connect(make_conninfo(**values),connect_timeout=15)
     with connection:
+        storage=getpass.getpass('Production Storage server credential (hidden; download only): ').strip()
+        key_id=getpass.getpass('Separate production B2 key ID (hidden): ').strip()
+        key=getpass.getpass('Separate production B2 application key (hidden): ').strip()
+        request=urllib.request.Request('https://api.backblazeb2.com/b2api/v4/b2_authorize_account',headers={'Authorization':'Basic '+base64.b64encode((key_id+':'+key).encode()).decode()})
+        with stage(state,'Backblaze authentication'):
+            with urllib.request.urlopen(request,timeout=30) as response:auth=json.load(response)
+        with stage(state,'Backblaze bucket restriction validation'):
+            validate_b2(auth,config)
+        reader='dealpipe_backup_reader';password=secrets.token_urlsafe(48)
         with stage(state,'backup reader creation'):
             if connection.execute('select 1 from pg_roles where rolname=%s',(reader,)).fetchone():
                 raise SystemExit('Backup reader already exists; stop and recover its saved credential rather than replacing it.')
@@ -110,7 +114,7 @@ def main():
 
 if __name__=='__main__':
     if sys.argv[1:]==['--version']:
-        print('dealpipe-recovery-provision v3 (pinned bucket ID; safe stage diagnostics)')
+        print('dealpipe-recovery-provision v4 (Supabase CA verified; database preflight first)')
     else:
         with stage(Path('/var/lib/dealpipe-recovery'),'installer setup'):
             main()

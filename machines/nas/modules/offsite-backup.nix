@@ -2,7 +2,7 @@
 let
   cfg = config.qnoxslab.offsiteBackup;
   source = ../../../stacks/backups;
-  template = builtins.fromJSON (builtins.readFile (source + /homelab.example.json));
+  template = builtins.fromJSON (builtins.readFile (source + /homelab.json));
   manifest = pkgs.writeText "homelab-offsite.json" (builtins.toJSON (template // {
     destination_repository = cfg.repository;
     source_password_file = config.clan.core.vars.generators.nas-backup-password.files.secret.path;
@@ -37,7 +37,7 @@ let
 in {
   options.qnoxslab.offsiteBackup = {
     enable = lib.mkEnableOption "independent encrypted EU B2 backups";
-    repository = lib.mkOption { type = lib.types.str; default = ""; description = "Actual EU B2 S3 URL including bucket and homelab prefix; no credentials."; };
+    repository = lib.mkOption { type = lib.types.str; default = template.destination_repository; description = "Actual EU B2 S3 URL including bucket and homelab prefix; no credentials."; };
     credentialsFile = lib.mkOption { type = lib.types.str; default = "/var/lib/offsite-backup/secrets/homelab.env"; description = "Root-owned 0600 AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY environment file."; };
   };
   config = lib.mkIf cfg.enable {

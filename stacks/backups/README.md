@@ -1,8 +1,8 @@
 # Independent offsite recovery
 
-Backblaze B2 in an EU region is the selected destination. Activation is pending
-an actual account/bucket endpoint, scoped credentials, and a recovery-password
-copy outside the NAS. There is no active B2 upload or production DB job yet.
+Backblaze B2 in an EU region is the selected destination. The private bucket `qnoxslab-homelab-backups` and endpoint
+`s3.eu-central-003.backblazeb2.com` are configured in `homelab.json`. Activation
+is pending scoped credentials and a recovery-password copy outside the NAS. There is no active B2 upload or production DB job yet.
 `qnoxslab.offsiteBackup.enable` defaults to false. No existing NAS or application
 deployment is changed by adding these definitions.
 
@@ -64,8 +64,9 @@ key. Do not paste credentials into chat, Git, notes, arguments or agent homes.
 
 ## Concrete activation
 
-1. Fill `homelab.example.json` with the actual EU endpoint and private bucket;
-   retain `/homelab` as the repository prefix. Copy the reviewed config to the
+1. Review the confirmed bucket/endpoint in `homelab.json`; the generic
+   `homelab.example.json` is only a template. Retain `/homelab` as the repository
+   prefix. Copy the reviewed config to the
    root-owned `/var/lib/offsite-backup/config.json`.
 2. Review `offsite.py plan --config ...` and confirm both source groups are fresh.
    If needed, run the existing local backup services first. Local backup staging

@@ -15,6 +15,7 @@ in
     ./modules/efficiency.nix
     ./modules/agent-platform.nix
     ./modules/github-runner.nix
+    ./modules/github-deploy-runner.nix
     ./modules/backups.nix
     ./modules/obsidian.nix
     ./modules/networking.nix

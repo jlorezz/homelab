@@ -35,9 +35,10 @@ def main():
         stop.touch(mode=0o600)
         return
     budget = 1800  # Same pilot queue admission budget as agent-workload.
+    admission = [] if os.environ.get("AGENT_CI_EXCLUSIVE") == "1" else ["--shared"]
     child = subprocess.Popen([
         sys.executable, "/usr/local/lib/agent-platform/workload.py", "lease",
-        "--shared", "--owner-pid", str(pid), "--owner-identity", identity,
+        *admission, "--owner-pid", str(pid), "--owner-identity", identity,
         "--queue-timeout", str(budget), "--ready", str(ready), "--stop", str(stop),
     ], start_new_session=True, stdin=subprocess.DEVNULL,
        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

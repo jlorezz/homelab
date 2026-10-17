@@ -1,0 +1,23 @@
+[Unit]
+Description=Dealpipe production recovery backup
+After=network-online.target dealpipe-testing-ram.service
+Wants=network-online.target
+Requires=dealpipe-testing-ram.service
+RequiresMountsFor=/storage/backups
+[Service]
+Type=oneshot
+Environment=PATH=/run/current-system/sw/bin
+ExecStart=@python@ /var/lib/agent-platform/bin/workload.py --lock /var/lib/agent-workloads/heavy.lock run --timeout 10800 -- @python@ @source@/backup.py backup
+UMask=0077
+Nice=15
+IOSchedulingClass=idle
+CPUQuota=100%
+MemoryMax=20G
+MemorySwapMax=0
+LimitCORE=0
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/dealpipe-recovery /storage/backups/dealpipe-encrypted-object-cache /run/dealpipe-recovery-private /var/lib/agent-workloads/heavy.lock
+TimeoutStartSec=4h

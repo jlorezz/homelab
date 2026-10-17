@@ -1,0 +1,173 @@
+diff --git a/Hub.ts b/Hub.ts
+index 645f8d5..6bec7c1 100644
+--- a/Hub.ts
++++ b/Hub.ts
+@@ -2,6 +2,7 @@ import { Config, FileData } from "./types.ts";
+ import { Peer, PeerHealth } from "./Peer.ts";
+ import { PeerStorage } from "./PeerStorage.ts";
+ import { PeerCouchDB } from "./PeerCouchDB.ts";
++import { isExcludedPath } from "./exclude.ts";
+ 
+ 
+ export class Hub {
+@@ -59,6 +60,7 @@ export class Hub {
+     }
+ 
+     async dispatch(source: Peer, path: string, data: FileData | false) {
++        if (isExcludedPath(path, this.conf.excludePrefixes)) return;
+         for (const peer of this.peers) {
+             if (peer !== source && (source.config.group ?? "") === (peer.config.group ?? "")) {
+                 let ret = false;
+diff --git a/PeerCouchDB.ts b/PeerCouchDB.ts
+index 17c2b66..97b14fc 100644
+--- a/PeerCouchDB.ts
++++ b/PeerCouchDB.ts
+@@ -215,7 +215,7 @@ export class PeerCouchDB extends Peer {
+ 
+     private async _connectAndWatch(): Promise<void> {
+         {
+-            const baseDir = this.toLocalPath("");
++            const baseDir = this.config.baseDir ? this.toLocalPath("") : "";
+             await this._waitReady(15000);
+             const w = await this.man.rawGet<Record<string, any>>(MILESTONE_DOCID);
+             if (w && "tweak_values" in w) {
+@@ -278,6 +278,11 @@ export class PeerCouchDB extends Peer {
+                 this.normalLog(`Watch starting from ${this.man.since}`);
+             }
+             this.man.beginWatch(async (entry) => {
++                if (!entry.path.startsWith(baseDir)) return;
++                if (entry.path.startsWith("i:")) {
++                    const internalPath = entry.path.substring(2);
++                    if (!this.config.includeInternal?.some(pattern => minimatch(internalPath, pattern, { dot: true }))) return;
++                }
+                 const d = entry.type == "plain" ? entry.data : new Uint8Array(decodeBinary(entry.data));
+                 let path = entry.path.substring(baseDir.length);
+                 if (path.startsWith("/")) {
+@@ -294,17 +299,7 @@ export class PeerCouchDB extends Peer {
+                     this.sendLog(`${path} change detected`);
+                     await this.dispatch(path, docData);
+                 }
+-            }, (entry) => {
+-                this.setSetting("since", this.man.since);
+-                if (entry.path.indexOf(":") !== -1) {
+-                    if (this.config.includeInternal && entry.path.startsWith("i:")) {
+-                        const stripped = entry.path.substring(2);
+-                        return this.config.includeInternal.some(pattern => minimatch(stripped, pattern, { dot: true }));
+-                    }
+-                    return false;
+-                }
+-                return entry.path.startsWith(baseDir);
+-            });
++            }, () => true);
+         }
+     }
+     async dispatch(path: string, data: FileData | false) {
+diff --git a/exclude.test.ts b/exclude.test.ts
+new file mode 100644
+index 0000000..9aa730d
+--- /dev/null
++++ b/exclude.test.ts
+@@ -0,0 +1,64 @@
++import { isExcludedPath } from "./exclude.ts";
++import { Hub } from "./Hub.ts";
++import { Peer } from "./Peer.ts";
++import type { FileData, PeerStorageConf } from "./types.ts";
++
++function assert(condition: unknown, message: string) {
++    if (!condition) throw new Error(message);
++}
++
++Deno.test("excluded prefixes match the folder and its children only", () => {
++    const prefixes = ["Private/"];
++    for (const path of ["Private", "Private/Meetings/a.md", "/Private/a.md", "private/A.md", "PRIVATE\\a.md", "./Private/a.md", "i:Private/x"]) {
++        assert(isExcludedPath(path, prefixes), `${path} must be excluded`);
++    }
++    for (const path of ["Brain/Private/a.md", "Privateer.md", "PrivateNotes/a.md", "Brain/a.md", ""]) {
++        assert(!isExcludedPath(path, prefixes), `${path} must not be excluded`);
++    }
++    assert(!isExcludedPath("Private/a.md", undefined), "no prefixes excludes nothing");
++    assert(!isExcludedPath("Private/a.md", ["", "/"]), "empty prefixes exclude nothing");
++});
++
++class RecordingPeer extends Peer {
++    puts: string[] = [];
++    deletes: string[] = [];
++    constructor(name: string) {
++        const config: PeerStorageConf = { type: "storage", name, group: "notes", baseDir: "" };
++        super(config, async () => {});
++    }
++    delete(path: string): Promise<boolean> {
++        this.deletes.push(path);
++        return Promise.resolve(true);
++    }
++    put(path: string): Promise<boolean> {
++        this.puts.push(path);
++        return Promise.resolve(true);
++    }
++    get(): Promise<false | FileData> {
++        return Promise.resolve(false);
++    }
++    start(): Promise<void> {
++        return Promise.resolve();
++    }
++    stop(): Promise<void> {
++        return Promise.resolve();
++    }
++}
++
++Deno.test("hub never forwards excluded paths in either direction", async () => {
++    const hub = new Hub({ peers: [], excludePrefixes: ["Private/"] });
++    const couch = new RecordingPeer("couch");
++    const disk = new RecordingPeer("disk");
++    hub.peers = [couch, disk];
++    const data: FileData = { ctime: 0, mtime: 0, size: 1, data: ["x"] };
++
++    await hub.dispatch(couch, "Private/Meetings/secret.md", data);
++    await hub.dispatch(couch, "/private/secret.md", false);
++    await hub.dispatch(disk, "Private/leaked.md", data);
++    await hub.dispatch(disk, "Private/leaked.md", false);
++    assert(disk.puts.length === 0 && disk.deletes.length === 0, "excluded paths must not reach disk");
++    assert(couch.puts.length === 0 && couch.deletes.length === 0, "excluded paths must not reach CouchDB");
++
++    await hub.dispatch(couch, "Brain/note.md", data);
++    assert(disk.puts.length === 1 && disk.puts[0] === "Brain/note.md", "other paths still sync");
++});
+diff --git a/exclude.ts b/exclude.ts
+new file mode 100644
+index 0000000..e454ca8
+--- /dev/null
++++ b/exclude.ts
+@@ -0,0 +1,20 @@
++// Vault folders that must never cross the hub. The NAS keeps them only as
++// encrypted CouchDB documents: never written to disk, never read from disk.
++// Matching is case-insensitive because Windows and macOS clients are.
++export function normalizeVaultPath(path: string): string {
++    let p = path.replaceAll("\\", "/");
++    if (p.startsWith("i:")) p = p.substring(2);
++    while (p.startsWith("/") || p.startsWith("./")) {
++        p = p.startsWith("/") ? p.substring(1) : p.substring(2);
++    }
++    return p.toLowerCase();
++}
++
++export function isExcludedPath(path: string, prefixes: string[] | undefined): boolean {
++    if (!prefixes || prefixes.length === 0) return false;
++    const p = normalizeVaultPath(path);
++    return prefixes.some((prefix) => {
++        const dir = normalizeVaultPath(prefix).replace(/\/+$/, "");
++        return dir !== "" && (p === dir || p.startsWith(`${dir}/`));
++    });
++}
+diff --git a/types.ts b/types.ts
+index f4d3f57..e76594a 100644
+--- a/types.ts
++++ b/types.ts
+@@ -2,6 +2,8 @@ import type { DirectFileManipulatorOptions } from "@vrtmrz/livesync-commonlib";
+ 
+ export interface Config {
+     peers: PeerConf[];
++    /** Vault folders never transferred between peers, e.g. ["Private/"] */
++    excludePrefixes?: string[];
+ }
+ export type PeerConf = PeerStorageConf | PeerCouchDBConf;
+ 

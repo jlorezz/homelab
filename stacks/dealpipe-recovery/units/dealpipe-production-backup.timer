@@ -1,0 +1,8 @@
+[Unit]
+Description=Schedule Dealpipe production recovery backup
+[Timer]
+OnCalendar=*-*-* 02:00:00
+Persistent=true
+RandomizedDelaySec=15m
+[Install]
+WantedBy=timers.target

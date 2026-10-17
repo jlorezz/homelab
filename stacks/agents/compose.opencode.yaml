@@ -1,0 +1,26 @@
+services:
+  opencode:
+    image: ${AGENT_IMAGE:?Set AGENT_IMAGE to the loaded flake image tag}
+    restart: unless-stopped
+    init: true
+    user: "1100:1100"
+    working_dir: /workspace/homelab
+    command: [opencode, web, --hostname, 0.0.0.0, --port, "4096"]
+    ports: ["127.0.0.1:4096:4096"]
+    volumes:
+      - /var/lib/agent-platform/opencode:/home/agent
+      - /var/lib/agent-platform/projects/opencode:/workspace
+      - /var/lib/agent-platform/policy:/opt/agent-policy:ro
+      - /run/agent-knowledge:/run/agent-knowledge:ro
+      - /var/lib/agent-platform/bin/brain.py:/usr/local/lib/agent-brain.py:ro
+      - /var/lib/agent-platform/knowledge/proposals/opencode:/knowledge-proposals
+      - /var/lib/agent-workloads/heavy.lock:/run/agent-workload.lock
+    environment:
+      OPENCODE_SERVER_PASSWORD: ${OPENCODE_SERVER_PASSWORD:?Set a unique OpenCode server password in Portainer}
+    cgroup_parent: agent-workloads.slice
+    cpus: 2.0
+    mem_limit: 6g
+    memswap_limit: 6g
+    pids_limit: 1024
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]

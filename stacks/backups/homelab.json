@@ -1,0 +1,29 @@
+{
+  "source_repository": "/storage/backups/nas-restic",
+  "source_password_file": "/run/secrets/vars/per-machine/nas/nas-backup-password/secret",
+  "destination_repository": "s3:https://s3.eu-central-003.backblazeb2.com/qnoxslab-homelab-backups/homelab",
+  "destination_password_file": "/var/lib/offsite-backup/secrets/homelab-password",
+  "state_directory": "/var/lib/offsite-backup/state",
+  "max_source_age_hours": 36,
+  "restore_sample": "/storage/obsidian/Brain/Start Here.md",
+  "groups": [
+    {
+      "name": "nas",
+      "hostname": "nas",
+      "required_paths": [
+        "/storage/obsidian",
+        "/storage/documents",
+        "/storage/media/photos",
+        "/var/lib/nas-backup-staging",
+        "/etc/nixos/homelab"
+      ]
+    },
+    {
+      "name": "agents",
+      "hostname": "nas",
+      "required_paths": [
+        "/var/lib/agent-backup-staging"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,68 @@
+x-runner: &runner
+  image: ${RUNNER_IMAGE:?Set the reviewed image built in the Dealpipe CI environment}
+  restart: unless-stopped
+  init: true
+  # Root maps to the unprivileged NAS CI account. Keep the rootless engine.
+  user: "0:0"
+  network_mode: host
+  cpus: 4.0
+  mem_limit: 12g
+  memswap_limit: 12g
+  pids_limit: 4096
+  healthcheck:
+    test: [CMD-SHELL, "test -s /runner/.runner && pgrep -x Runner.Listener >/dev/null"]
+    interval: 30s
+    timeout: 5s
+    start_period: 120s
+    retries: 3
+
+services:
+  # Fixed-port database suites run one at a time on this lane.
+  runner:
+    <<: *runner
+    volumes:
+      - /var/lib/dealpipe-ci/runner:/runner
+      - /var/lib/dealpipe-ci/home:/home/ci
+      - /var/lib/dealpipe-ci/work:/var/lib/dealpipe-ci/work
+      - /run/user/1102/docker.sock:/var/run/docker.sock
+      - /var/lib/dealpipe-ci/secrets/registration-token:/run/secrets/registration-token:ro
+      - /var/lib/agent-workloads/heavy.lock:/run/agent-workload.lock
+    environment:
+      TZ: Europe/Berlin
+      RUNNER_NAME: dealpipe-nas-ci
+      RUNNER_LABEL: dealpipe-nas-ci
+
+  # Browser services use their own Supabase project and 278xx ports.
+  browser:
+    <<: *runner
+    volumes:
+      - /var/lib/dealpipe-ci/browser/runner:/runner
+      - /var/lib/dealpipe-ci/browser/home:/home/ci
+      - /var/lib/dealpipe-ci/browser/work:/var/lib/dealpipe-ci/browser/work
+      - /run/user/1102/docker.sock:/var/run/docker.sock
+      - /var/lib/dealpipe-ci/secrets/registration-token:/run/secrets/registration-token:ro
+      - /var/lib/agent-workloads/heavy.lock:/run/agent-workload.lock
+    environment:
+      TZ: Europe/Berlin
+      RUNNER_NAME: dealpipe-nas-browser
+      RUNNER_LABEL: dealpipe-nas-browser
+      RUNNER_WORK_DIRECTORY: /var/lib/dealpipe-ci/browser/work
+
+  # No Docker socket: routing, policy, quality, typechecks and unit tests.
+  static:
+    <<: *runner
+    cpus: 2.0
+    mem_limit: 12g
+    memswap_limit: 12g
+    pids_limit: 2048
+    volumes:
+      - /var/lib/dealpipe-ci/static/runner:/runner
+      - /var/lib/dealpipe-ci/static/home:/home/ci
+      - /var/lib/dealpipe-ci/static/work:/var/lib/dealpipe-ci/static/work
+      - /var/lib/dealpipe-ci/secrets/registration-token:/run/secrets/registration-token:ro
+      - /var/lib/agent-workloads/heavy.lock:/run/agent-workload.lock
+    environment:
+      TZ: Europe/Berlin
+      RUNNER_NAME: dealpipe-nas-static
+      RUNNER_LABEL: dealpipe-nas-static
+      RUNNER_WORK_DIRECTORY: /var/lib/dealpipe-ci/static/work

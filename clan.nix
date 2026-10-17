@@ -22,6 +22,8 @@
     # SSH access management (replaces deprecated admin service)
     sshd = {
       roles.server.tags.all = { };
+      # Keep the existing host-key authentication during the Clan upgrade.
+      roles.server.settings.certificate.enable = false;
       roles.server.settings.authorizedKeys = {
         "nas-jlorezz" =
           "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHOYvgPIeoUbctMtnM34lhIjrZrvcoGSuaCyJ03QPwvU florianbress@gmail.com";

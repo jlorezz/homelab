@@ -1,0 +1,13 @@
+{
+  "enabled_mcp": [
+    "supabase",
+    "cloudflare",
+    "resend",
+    "posthog",
+    "stripe",
+    "vercel",
+    "sentry",
+    "github",
+    "shared-brain"
+  ]
+}

@@ -10,19 +10,15 @@ in
 {
   imports = containerFiles;
 
-  # Enable Podman as container backend
-  virtualisation.podman = {
+  virtualisation.docker = {
     enable = true;
-    dockerCompat = true;
-    defaultNetwork.settings.dns_enabled = true;
+    enableOnBoot = true;
+    liveRestore = true;
+    daemon.settings = {
+      "log-driver" = "local";
+      "log-opts" = { "max-size" = "10m"; "max-file" = "3"; };
+    };
   };
-
-  virtualisation.oci-containers.backend = "podman";
-
-  virtualisation.containers.containersConf.settings = {
-    engine.helper_binaries_dir = [ "${pkgs.netavark}/bin" ];
-  };
-
-  # Ensure podman socket is available
-  systemd.sockets.podman.wantedBy = [ "sockets.target" ];
+  virtualisation.podman.enable = false;
+  virtualisation.oci-containers.backend = "docker";
 }

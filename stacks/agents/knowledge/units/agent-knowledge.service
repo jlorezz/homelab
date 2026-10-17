@@ -1,0 +1,27 @@
+[Unit]
+Description=Read-only shared Brain MCP service
+After=local-fs.target
+
+[Service]
+Type=notify
+NotifyAccess=main
+TimeoutStartSec=30
+User=agent-platform
+Group=agent-platform
+RuntimeDirectory=agent-knowledge
+RuntimeDirectoryMode=0755
+RuntimeDirectoryPreserve=yes
+ExecStart=@python@ @runtime@/brain.py serve --db @state@/index.sqlite
+Restart=on-failure
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateNetwork=true
+ReadOnlyPaths=@state@
+InaccessiblePaths=/storage /var/lib/agent-platform/secrets /var/lib/agent-platform/hermes /var/lib/agent-platform/t3 /var/lib/agent-platform/opencode /var/lib/agent-platform/projects
+MemoryMax=256M
+CPUQuota=25%
+
+[Install]
+WantedBy=multi-user.target

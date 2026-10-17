@@ -23,7 +23,7 @@
 let
   secretsDir = "/run/${name}-secrets";
   envFile = "${secretsDir}/secrets.env";
-  podmanService = "podman-${name}.service";
+  containerService = "${config.virtualisation.oci-containers.backend}-${name}.service";
 
   # Build env lines from the vars attrset
   envLines = builtins.attrValues (
@@ -44,8 +44,8 @@ in
 
   systemd.services."${name}-secrets" = {
     description = "Generate ${name} secrets environment file";
-    wantedBy = [ podmanService ];
-    before = [ podmanService ];
+    wantedBy = [ containerService ];
+    before = [ containerService ];
     serviceConfig = {
       Type = "oneshot";
       RemainAfterExit = true;

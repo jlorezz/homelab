@@ -1,0 +1,71 @@
+name: Agent platform
+
+on:
+  pull_request:
+    paths:
+      - .agents/**
+      - .github/workflows/agent-platform.yml
+      - stacks/agents/**
+      - stacks/backups/**
+      - stacks/dealpipe-recovery/**
+      - stacks/github-runner/**
+      - packages/**
+      - machines/nas/modules/agent-platform.nix
+      - machines/nas/modules/agent-knowledge.nix
+      - machines/nas/modules/offsite-backup.nix
+      - machines/nas/modules/dealpipe-recovery.nix
+      - machines/nas/scripts/check-nas-health.py
+      - machines/nas/modules/github-runner.nix
+      - flake.nix
+      - flake.lock
+  workflow_dispatch:
+    inputs:
+      build-image:
+        description: Build the pinned development image (no deployment)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agent-platform-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  policy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: '3.12'
+      - run: python -m pip install PyYAML==6.0.3 cryptography==50.0.0 'psycopg[binary]==3.3.5'
+      - run: python stacks/agents/doctor.py --source-only
+      - run: python -m unittest discover -s stacks/agents/tests -v
+      - run: sudo apt-get update && sudo apt-get install -y restic
+      - run: python -m unittest discover -s stacks/backups/tests -v
+      - run: python -m unittest discover -s stacks/dealpipe-recovery/tests -v
+      - run: bash -n stacks/agents/prepare-workspaces.sh stacks/github-runner/entrypoint.sh
+
+  nix:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: cachix/install-nix-action@3c6342b75005b9cc7c7d4069c3e9179247c89012 # v31
+      - name: Parse changed platform definitions
+        run: |
+          for file in flake.nix packages/*.nix machines/nas/modules/agent-platform.nix machines/nas/modules/agent-knowledge.nix machines/nas/modules/offsite-backup.nix machines/nas/modules/dealpipe-recovery.nix machines/nas/modules/github-runner.nix; do
+            nix-instantiate --parse "$file" >/dev/null
+          done
+      - name: Build and check exact application runtimes
+        run: nix build .#agent-runtimes --print-build-logs
+      - name: Build development image when requested
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.build-image }}
+        run: nix build .#agent-image --print-build-logs

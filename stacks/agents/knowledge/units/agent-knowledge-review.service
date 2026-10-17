@@ -1,0 +1,18 @@
+[Unit]
+Description=Flag changed pinned sources for human Brain review
+RequiresMountsFor=/storage/obsidian
+After=agent-knowledge-refresh.service
+
+[Service]
+Type=oneshot
+ExecStart=@python@ @runtime@/source_review.py --config @state@/sources.json
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateNetwork=true
+ReadWritePaths=@state@/review /storage/obsidian/Brain/Inbox
+UMask=0007
+MemoryMax=128M
+CPUQuota=10%
+TimeoutStartSec=10min

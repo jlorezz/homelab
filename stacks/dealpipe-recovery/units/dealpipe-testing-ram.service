@@ -1,0 +1,9 @@
+[Unit]
+Description=Dealpipe private RAM workspace
+Before=docker.service
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=@python@ @source@/prepare.py
+[Install]
+WantedBy=multi-user.target

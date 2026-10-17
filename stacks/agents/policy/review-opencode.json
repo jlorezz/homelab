@@ -1,0 +1,78 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "surplus-intelligence/deepseek-v4.1-flash",
+  "provider": {
+    "surplus-intelligence": {
+      "name": "Surplus Intelligence",
+      "npm": "@ai-sdk/openai-compatible",
+      "env": [
+        "SURPLUS_API_KEY"
+      ],
+      "options": {
+        "baseURL": "https://api.surplusintelligence.ai/v1"
+      },
+      "models": {
+        "deepseek-v4.1-flash": {
+          "name": "Deepseek v4.1 Flash",
+          "reasoning": true,
+          "tool_call": true,
+          "attachment": true,
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 384000
+          },
+          "interleaved": {
+            "field": "reasoning_content"
+          },
+          "variants": {
+            "low": {
+              "reasoningEffort": "low"
+            },
+            "medium": {
+              "reasoningEffort": "medium"
+            },
+            "high": {
+              "reasoningEffort": "high"
+            },
+            "max": {
+              "reasoningEffort": "max"
+            }
+          }
+        }
+      }
+    }
+  },
+  "instructions": [
+    "/opt/agent-policy/current/AGENTS.md"
+  ],
+  "permission": {
+    "*": "deny",
+    "read": "allow",
+    "glob": "allow",
+    "grep": "allow",
+    "list": "allow"
+  },
+  "agent": {
+    "homelab-review": {
+      "mode": "primary",
+      "description": "One explicitly requested advisory review of an isolated committed snapshot",
+      "steps": 12,
+      "permission": {
+        "*": "deny",
+        "read": "allow",
+        "glob": "allow",
+        "grep": "allow",
+        "list": "allow"
+      }
+    }
+  }
+}

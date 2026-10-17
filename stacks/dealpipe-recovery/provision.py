@@ -1,0 +1,176 @@
+#!/usr/bin/env python3
+"""Hidden NAS terminal entry. Provision a read-only exporter; never retain the admin URL."""
+import base64
+from contextlib import contextmanager
+from datetime import datetime, timezone
+import getpass
+import json
+import os
+from pathlib import Path
+import secrets
+import sys
+import tempfile
+import urllib.error
+import urllib.request
+
+import psycopg
+from psycopg import sql
+from psycopg.conninfo import conninfo_to_dict,make_conninfo
+
+from backup import HERE,private_json,write_private,source_connection
+
+
+def authorize_b2(key_id,key):
+    request=urllib.request.Request('https://api.backblazeb2.com/b2api/v4/b2_authorize_account',headers={
+        'Authorization':'Basic '+base64.b64encode((key_id+':'+key).encode()).decode()})
+    with urllib.request.urlopen(request,timeout=30) as response:return json.load(response)
+
+
+def check_b2():
+    if os.geteuid()!=0:raise SystemExit('Run in an interactive NAS root terminal')
+    config=json.loads((HERE/'config.json').read_text())
+    key_id=getpass.getpass('Production B2 key ID (hidden): ').strip()
+    key=getpass.getpass('Production B2 application key (hidden): ').strip()
+    with stage(Path(config['state_directory']),'Backblaze authentication'):
+        auth=authorize_b2(key_id,key)
+    validate_b2(auth,config)
+    print('Backblaze authentication and production bucket/prefix restrictions passed. No credentials saved or database changes made.')
+
+
+def verify_storage(config,key):
+    if key.count('.')==2:
+        try:claims=json.loads(base64.urlsafe_b64decode(key.split('.')[1]+'==='))
+        except (ValueError,TypeError):raise SystemExit('Storage credential is not a valid server key') from None
+        if claims.get('iss') in ['supabase-demo','supabase-demo-project']:
+            raise SystemExit('This is a local demo key. Use the hosted production project API Keys page.')
+        if claims.get('role')!='service_role':raise SystemExit('Use a production server/service-role key, not an anon key')
+    elif not key.startswith('sb_secret_'):raise SystemExit('Use a production server/service-role key')
+    class NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self,*args,**kwargs):return None
+    request=urllib.request.Request(config['storage_url']+'/bucket',headers={'apikey':key,'Authorization':'Bearer '+key})
+    with urllib.request.build_opener(NoRedirect).open(request,timeout=30) as response:
+        if not isinstance(json.load(response),list):raise ValueError('Unexpected Storage response')
+
+
+def replace_storage_key():
+    if os.geteuid()!=0:raise SystemExit('Run in an interactive NAS root terminal')
+    config=json.loads((HERE/'config.json').read_text());state=Path(config['state_directory'])
+    path=state/'credentials.json';credentials=private_json(path)
+    key=getpass.getpass('Hosted PRODUCTION Storage server/service-role key (hidden): ').strip()
+    with stage(state,'production Storage credential verification'):verify_storage(config,key)
+    credentials['storage_read_key']=key
+    with tempfile.NamedTemporaryFile(mode='w',dir=state,delete=False) as stream:
+        json.dump(credentials,stream);temporary=Path(stream.name)
+    temporary.chmod(0o600);temporary.replace(path)
+    print('Production Storage key verified and replaced privately. Database and B2 credentials preserved.')
+
+
+def validate_b2(auth, config):
+    """Pin the bucket ID; B2 may omit names for restricted keys."""
+    storage_api=auth.get('apiInfo',{}).get('storageApi',{})
+    scope=storage_api.get('allowed',auth.get('allowed'))
+    if not isinstance(scope,dict):
+        raise SystemExit('Backblaze returned no recognizable key restrictions; no database changes were made.')
+    buckets=scope.get('buckets')
+    if buckets is None and scope.get('bucketId'):
+        buckets=[{'id':scope['bucketId'],'name':scope.get('bucketName')}]
+    if not isinstance(buckets,list) or len(buckets)!=1 or buckets[0].get('id')!=config['b2_bucket_id']:
+        raise SystemExit('B2 key is not restricted to the production bucket ID shown in your bucket screenshot. Select qnoxslab-dealpipe-production-backups only.')
+    if scope.get('namePrefix')!='production/':raise SystemExit('Restrict the B2 key to production/ prefix')
+    if not {'listFiles','readFiles','writeFiles'}<=set(scope.get('capabilities',[])):
+        raise SystemExit('B2 export/restore needs listing, reading and writing within its production prefix')
+
+
+@contextmanager
+def stage(state, name):
+    """Persist allowlisted diagnostics only; provider/SQL exception text can contain secrets."""
+    try:
+        yield
+    except Exception as error:
+        details={'stage':name,'at':datetime.now(timezone.utc).isoformat()}
+        hint='Unexpected installer error; the operator can inspect the safe stage receipt.'
+        if isinstance(error,urllib.error.HTTPError):
+            details['http_status']=error.code
+            hint='Provider rejected this request; check the credential for the named stage.'
+            try:
+                provider_code=json.loads(error.read(4096)).get('code')
+                if provider_code in {'unauthorized','unsupported','bad_auth_token','expired_auth_token','transaction_cap_exceeded'}:
+                    details['provider_code']=provider_code
+            except (ValueError,AttributeError,TypeError):pass
+            error.close()
+        elif isinstance(error,psycopg.Error):
+            code=error.sqlstate
+            if code and len(code)==5 and code.isalnum():details['sqlstate']=code
+            hint={'28P01':'The database rejected the username/password.',
+                  '42501':'The database role lacks permission for this provisioning step.',
+                  '42710':'The backup reader already exists; do not recreate or overwrite it.'}.get(code,'Database connection or operation failed; check the session URL, TLS and network access.')
+            if 'certificate verify failed' in str(error).lower():
+                details['reason']='tls-certificate-verification-failed'
+                hint='Supabase database CA/hostname verification failed; inspect the bundled trusted CA. No database password change is indicated.'
+        elif isinstance(error,(urllib.error.URLError,TimeoutError,OSError)):
+            hint='Network, TLS or local file access failed at this step.'
+        state.mkdir(mode=0o700,parents=True,exist_ok=True)
+        with tempfile.NamedTemporaryFile(mode='w',dir=state,delete=False) as stream:
+            json.dump(details,stream);temporary=Path(stream.name)
+        temporary.chmod(0o600);temporary.replace(state/'provision-status.json')
+        suffix=''.join(' '+key+'='+str(details[key]) for key in ['http_status','provider_code','sqlstate'] if key in details)
+        raise SystemExit('Provisioning failed at '+name+'.'+suffix+' '+hint+' No credential values were logged.') from None
+
+
+def main():
+    if os.geteuid()!=0:raise SystemExit('Run in an interactive NAS root terminal')
+    config=json.loads((HERE/'config.json').read_text())
+    state=Path(config['state_directory']);state.mkdir(mode=0o700,parents=True,exist_ok=True);state.chmod(0o700)
+    if (state/'credentials.json').exists():raise SystemExit('Already provisioned. Rotate deliberately; do not overwrite.')
+    # Prompt only inside the user's SSH terminal. No values enter the chat or command arguments.
+    admin=getpass.getpass('Production database direct/session URL (hidden; used once to create reader): ').strip()
+    values=conninfo_to_dict(admin)
+    ref=config['project_ref'];host=values.get('host','');user=values.get('user','')
+    if values.get('port','5432')!='5432' or not(host=='db.'+ref+'.supabase.co' or(host.endswith('.pooler.supabase.com') and user.endswith('.'+ref))):
+        raise SystemExit('Use this production project and direct/session port 5432')
+    values['sslmode']='verify-full';values['sslrootcert']=str(HERE/'supabase-prod-ca-2021.crt')
+    admin=None
+    with stage(state,'production database connection'):
+        connection=psycopg.connect(make_conninfo(**values),connect_timeout=15)
+    with connection:
+        storage=getpass.getpass('Production Storage server credential (hidden; download only): ').strip()
+        with stage(state,'production Storage credential verification'):verify_storage(config,storage)
+        key_id=getpass.getpass('Separate production B2 key ID (hidden): ').strip()
+        key=getpass.getpass('Separate production B2 application key (hidden): ').strip()
+        with stage(state,'Backblaze authentication'):
+            auth=authorize_b2(key_id,key)
+        with stage(state,'Backblaze bucket restriction validation'):
+            validate_b2(auth,config)
+        reader='dealpipe_backup_reader';password=secrets.token_urlsafe(48)
+        with stage(state,'backup reader creation'):
+            if connection.execute('select 1 from pg_roles where rolname=%s',(reader,)).fetchone():
+                raise SystemExit('Backup reader already exists; stop and recover its saved credential rather than replacing it.')
+            # Send a SCRAM verifier rather than plaintext in the role-creation SQL.
+            verifier=connection.pgconn.encrypt_password(password.encode(),reader.encode(),b'scram-sha-256').decode()
+            connection.execute(sql.SQL('CREATE ROLE {} LOGIN PASSWORD {} BYPASSRLS NOSUPERUSER NOCREATEDB NOCREATEROLE').format(sql.Identifier(reader),sql.Literal(verifier)))
+            connection.execute(sql.SQL('GRANT pg_read_all_data TO {}').format(sql.Identifier(reader)))
+            connection.execute(sql.SQL('ALTER ROLE {} SET default_transaction_read_only=on').format(sql.Identifier(reader)))
+    values['user']=reader+'.'+ref if host.endswith('.pooler.supabase.com') else reader
+    values['password']=password
+    credentials={'database_url':make_conninfo(**values),'storage_read_key':storage,'b2_key_id':key_id,'b2_application_key':key}
+    # Retain recovery access even if the first authentication attempt needs pooler propagation.
+    with stage(state,'private credential installation'):
+        write_private(state/'credentials.json',json.dumps(credentials))
+        write_private(state/'repository-password',secrets.token_urlsafe(48)+'\n')
+    with stage(state,'backup reader login verification'):
+        with source_connection(credentials,config):pass
+    print('Reader and private credentials installed. Admin connection discarded. Save repository-password outside NAS before initialization.')
+
+
+if __name__=='__main__':
+    if sys.argv[1:]==['--version']:
+        print('dealpipe-recovery-provision v6 (verified production Storage key replacement)')
+    elif sys.argv[1:]==['--check-b2']:
+        with stage(Path('/var/lib/dealpipe-recovery'),'Backblaze check setup'):
+            check_b2()
+    elif sys.argv[1:]==['--replace-storage-key']:
+        with stage(Path('/var/lib/dealpipe-recovery'),'Storage credential replacement'):
+            replace_storage_key()
+    else:
+        with stage(Path('/var/lib/dealpipe-recovery'),'installer setup'):
+            main()

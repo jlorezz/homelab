@@ -1,0 +1,81 @@
+{
+  "version": 1,
+  "tables": {
+    "public.users": {
+      "action": "sanitize",
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "strategy": "uuid"
+        },
+        "email": {
+          "type": "text",
+          "strategy": "text"
+        },
+        "status": {
+          "type": "user_status",
+          "strategy": "enum"
+        }
+      }
+    },
+    "auth.users": {
+      "action": "sanitize",
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "strategy": "uuid"
+        },
+        "email": {
+          "type": "text",
+          "strategy": "text"
+        },
+        "encrypted_password": {
+          "type": "text",
+          "strategy": "text"
+        },
+        "raw_user_meta_data": {
+          "type": "jsonb",
+          "strategy": "json_object"
+        }
+      }
+    },
+    "public.webhooks": {
+      "action": "empty",
+      "columns": {}
+    },
+    "public.webhook_deliveries": {
+      "action": "empty",
+      "columns": {}
+    },
+    "public.email_provider_connections": {
+      "action": "empty",
+      "columns": {}
+    },
+    "public.telephony_accounts": {
+      "action": "empty",
+      "columns": {}
+    },
+    "public.org_api_tokens": {
+      "action": "empty",
+      "columns": {}
+    },
+    "public.coworker_runs": {
+      "action": "empty",
+      "columns": {}
+    },
+    "public.crm_workflow_runs": {
+      "action": "empty",
+      "columns": {}
+    },
+    "public.account_erasure_requests": {
+      "action": "empty",
+      "columns": {}
+    }
+  },
+  "enums": {
+    "user_status": [
+      "active",
+      "inactive"
+    ]
+  }
+}

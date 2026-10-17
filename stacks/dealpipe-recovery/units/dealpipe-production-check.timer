@@ -1,0 +1,8 @@
+[Unit]
+Description=Schedule Dealpipe production recovery check
+[Timer]
+OnCalendar=Sun *-*-* 04:30:00
+Persistent=true
+RandomizedDelaySec=0
+[Install]
+WantedBy=timers.target

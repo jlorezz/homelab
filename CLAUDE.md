@@ -56,20 +56,39 @@ The Clan CLI provides commands for machine management, deployment, and secrets. 
 
 ### Obsidian Vault (Internal Docs)
 
-Project documentation lives in the Obsidian vault under `4. Outputs/Personal/Homelab/`:
+Project documentation lives in the Obsidian vault under `Brain/Projects/homelab/`:
 
-- **Infrastructure/**
+The main vault is `/storage/obsidian` on the NAS and is the single source of truth
+for homelab documentation. Humans curate notes there; agents submit evidenced
+Inbox proposals. Do not keep a vault documentation mirror in this repository.
+The desktop working copy is `G:\obsidian-notes\NAS`. The central organized Brain
+is `/storage/obsidian/Brain`; the former standalone archive was intentionally
+removed by the user. Open `Brain/Start Here.md` for project entry
+points. Desktop folders are synced working copies; deleting their contents can
+propagate to the NAS. Agents search the read-only `shared-brain` MCP service and
+submit proposals through the collector, never by editing vault notes. Notes use self-hosted LiveSync/CouchDB, not paid Obsidian Sync.
+Syncthing was removed on 2026-10-15; LiveSync is the only notes sync service.
+
+Current runbooks cover power/memory, maintenance, backups, restore, disaster
+recovery, desktop/iPhone onboarding, troubleshooting and incident templates.
+Never commit client plugin `data.json`, setup URIs, recovery keys or passwords.
+Use `lib.mkMerge` to compose full NixOS configuration fragments; shallow `//`
+merging can discard systemd settings.
+
+- **Reference/** and **Runbooks/**
   - `Overview.md` - Architecture, technologies, machines summary
   - `NAS.md` - NAS machine config, storage layout, installed services
   - `Networking.md` - Network topology, firewall, DNS, Tailscale setup
   - `Secrets Management.md` - Clan vars, SOPS, how to add secrets
   - `Adding a New Machine.md` - Step-by-step guide with checklist
-- **Services/**
+- **Reference/**
   - `Services.md` - Full service catalog with port map
-- **Configs/** - (reserved for config snippets/references)
-- **Troubleshooting/** - (reserved for issue resolution notes)
+- **Decisions/**, **Learnings/** - reusable project knowledge
+- **History/** and **Plans/** - dated evidence and design drafts
 
-When making infrastructure changes, keep the corresponding Obsidian docs updated.
+When making infrastructure changes, propose corresponding Brain updates through
+the agent-knowledge workflow. The vault handbook is
+`Brain/System/How This Brain Works.md`.
 
 ### External References
 

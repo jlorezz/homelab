@@ -1,0 +1,10 @@
+{
+  "project": "homelab",
+  "kind": "learning",
+  "source": "https://github.com/jlorezz/homelab/pull/123",
+  "target": "stacks/agents/policy/AGENTS.md",
+  "observation": "Describe the surprising failure or incorrect assumption.",
+  "evidence": "Link the relevant PR, run, or incident and identify the verified outcome.",
+  "proposed_change": "Give the smallest exact documentation or skill edit that would prevent recurrence.",
+  "verification": "Name checks actually run, their outcomes, and any unresolved uncertainty."
+}

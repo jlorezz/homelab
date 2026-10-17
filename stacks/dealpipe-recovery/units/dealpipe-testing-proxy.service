@@ -1,0 +1,17 @@
+[Unit]
+Description=Loopback ingress to isolated Dealpipe testing
+After=docker.service dealpipe-testing-targets.service
+Requires=dealpipe-testing-targets.service
+ConditionPathExists=/etc/dealpipe-testing/proxy.json
+[Service]
+Type=simple
+ExecStart=@python@ @source@/proxy.py
+Restart=on-failure
+DynamicUser=true
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+MemoryMax=128M
+[Install]
+WantedBy=multi-user.target

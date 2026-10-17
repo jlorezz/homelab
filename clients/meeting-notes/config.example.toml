@@ -1,0 +1,30 @@
+# meeting-sink per-device config. The installer writes this to
+# %LOCALAPPDATA%\meeting-sink\config.toml (Windows) or
+# ~/Library/Application Support/meeting-sink/config.toml (macOS).
+
+# Local Obsidian vault synced by LiveSync.
+vault_path = 'G:\obsidian-notes\NAS'
+# Must stay under Private/: the NAS bridge never writes it to disk or the index.
+notes_folder = "Private/Meetings"
+
+# Loopback only; the script refuses anything else.
+ollama_url = "http://127.0.0.1:11434"
+# 16 GB GPU: qwen3:14b. 8 GB: qwen3:8b. Laptop without a GPU: qwen3:4b.
+model = "qwen3:14b"
+num_ctx = 32768
+
+# Name used for your own microphone in the summary.
+owner = "Me"
+
+# Leave false until the NAS runs the Private/ bridge exclusion. While false no
+# notes are written and transcripts are still erased after max_age_hours.
+nas_exclusion_confirmed = false
+
+# Minutes to wait after Meetily saves a meeting; hours before an unsummarised
+# transcript is erased anyway.
+settle_minutes = 2
+max_age_hours = 24
+
+# Optional overrides (defaults follow Meetily 0.4.x):
+# meetily_db = '%APPDATA%\com.meetily.ai\meeting_minutes.sqlite'
+# recordings_dir = '%USERPROFILE%\Music\meetily-recordings'

@@ -6,6 +6,8 @@ in
 {
   imports = [ ./offsite-backup.nix ];
 
+  qnoxslab.offsiteBackup.enable = true;
+
   clan.core.vars.generators.nas-backup-password = {
     files.secret.secret = true;
     runtimeInputs = [ pkgs.openssl ];

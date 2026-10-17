@@ -41,6 +41,18 @@ in {
     credentialsFile = lib.mkOption { type = lib.types.str; default = "/var/lib/offsite-backup/secrets/homelab.env"; description = "Root-owned 0600 AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY environment file."; };
   };
   config = lib.mkIf cfg.enable {
+    system.activationScripts.offsiteBackupAdopt = lib.stringAfter [ "etc" ] ''
+      if [ -f /etc/systemd/system.control/.offsite-backup-managed ]; then
+        for action in copy check restore-test; do
+          rm -f /etc/systemd/system.control/offsite-$action.service
+          rm -f /etc/systemd/system.control/offsite-$action.timer
+          rm -f /etc/systemd/system.control/timers.target.wants/offsite-$action.timer
+        done
+        rm -f /etc/systemd/system.control/nas-health-check.service.d/50-offsite.conf
+        rm -f /etc/systemd/system.control/.offsite-backup-managed
+        rm -f /nix/var/nix/gcroots/offsite-backup-python /nix/var/nix/gcroots/offsite-backup-restic
+      fi
+    '';
     assertions = [{ assertion = cfg.repository != "" && !(lib.hasInfix "REPLACE" cfg.repository); message = "Configure the actual private EU B2 repository before enabling offsite backup."; }];
     systemd.tmpfiles.rules = [ "d /var/lib/offsite-backup 0700 root root -" "d /var/lib/offsite-backup/secrets 0700 root root -" "d /var/lib/offsite-backup/state 0700 root root -" ];
     systemd.services.offsite-copy = service "copy";

@@ -1,10 +1,10 @@
 # Independent offsite recovery
 
 Backblaze B2 in an EU region is the selected destination. The private bucket `qnoxslab-homelab-backups` and endpoint
-`s3.eu-central-003.backblazeb2.com` are configured in `homelab.json`. Activation
-is pending scoped credentials and a recovery-password copy outside the NAS. There is no active B2 upload or production DB job yet.
-`qnoxslab.offsiteBackup.enable` defaults to false. No existing NAS or application
-deployment is changed by adding these definitions.
+`s3.eu-central-003.backblazeb2.com` are configured in `homelab.json`. The NAS is enabled through `backups.nix`; `offsite-backup.nix` remains opt-in for
+other hosts. The private credentials and independent recovery-password copy
+are installed. Deployment verification is recorded in the Brain Offsite Recovery
+runbook. Production database exports remain a separate, inactive deployment.
 
 ## Homelab data and consistency
 
@@ -36,7 +36,7 @@ endpoint from that bucket, not an inferred region. Use a separate private bucket
 and credentials for Dealpipe production; do not mix recovery passwords or keys.
 Protect the account with MFA and retain owner/recovery access outside the NAS.
 
-The daily key is restricted to the Homelab bucket/prefix with listing, read and
+The intended hardened daily key is restricted to the Homelab bucket/prefix with listing, read and
 write access. Do not grant bucket administration or permanent version deletion
 (`deleteFiles`). S3 deletion by name uses `writeFiles`, while deletion of a
 specific version requires `deleteFiles`. Verify these rights with expendable
@@ -48,7 +48,14 @@ Restic lock deletion and a restore must pass with the restricted key. Test that
 permanent version deletion is denied. A separate maintenance key remains with
 the operator outside the NAS. Do not enable blanket Object Lock on the Restic
 bucket without a separate tested lock/prune design. The current setup does not
-claim verified B2 deletion protection until these cloud tests run.
+claim verified B2 deletion protection. The initially supplied console-created
+key authenticates and is restricted to the correct bucket and `homelab/` prefix,
+but includes `deleteFiles` and bucket-administration capabilities. It therefore
+provides functional encrypted offsite copies, without verified deletion
+protection. Replace it with a narrowly scoped capability key before relying on
+version retention for recovery from NAS credential compromise. The bucket
+currently keeps all versions; a 90-day previous-version lifecycle is a future
+operator change, not an active expiry policy.
 
 Install credentials in an interactive NAS terminal, with hidden prompts:
 
@@ -77,8 +84,20 @@ key. Do not paste credentials into chat, Git, notes, arguments or agent homes.
    `health`. Use the shared workload guard for copy/check/restore.
 4. Confirm bucket scope, version retention and denied permanent deletion against
    disposable test objects. Check actual uploaded bytes and set account spending
-   alerts. Only then activate the matching Nix service/timer definitions, either
-   in a narrow reviewed rollout or a separately authorized NixOS activation.
+   alerts. Record any unmet deletion-protection controls explicitly; working
+   backups alone do not prove them. Activate the matching Nix service/timer
+   definitions with a separately authorized NixOS activation, or use the narrow
+   installer after successful cloud copy/check/restore receipts:
+
+   ```sh
+   python3 /etc/nixos/homelab/stacks/backups/install.py --apply
+   ```
+
+   The installer validates all units before loading, uses persistent
+   `/etc/systemd/system.control` units and boot dependencies, roots Python/Restic
+   store paths, and extends the existing NAS health service. It does not switch
+   NixOS or restart application/agent containers. A later enabled Nix activation
+   adopts only these marked units and removes the temporary health drop-in.
 5. Verify the NAS health probe receives `OFFSITE_BACKUP_STATUS`. Missing/stale
    daily copy, weekly check, monthly restore or a newer failure must fail health.
    Beszel's existing systemd health view receives that failed probe; verify its

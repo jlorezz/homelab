@@ -20,6 +20,23 @@ from psycopg.conninfo import conninfo_to_dict,make_conninfo
 from backup import HERE,private_json,write_private,source_connection
 
 
+def authorize_b2(key_id,key):
+    request=urllib.request.Request('https://api.backblazeb2.com/b2api/v4/b2_authorize_account',headers={
+        'Authorization':'Basic '+base64.b64encode((key_id+':'+key).encode()).decode()})
+    with urllib.request.urlopen(request,timeout=30) as response:return json.load(response)
+
+
+def check_b2():
+    if os.geteuid()!=0:raise SystemExit('Run in an interactive NAS root terminal')
+    config=json.loads((HERE/'config.json').read_text())
+    key_id=getpass.getpass('Production B2 key ID (hidden): ').strip()
+    key=getpass.getpass('Production B2 application key (hidden): ').strip()
+    with stage(Path(config['state_directory']),'Backblaze authentication'):
+        auth=authorize_b2(key_id,key)
+    validate_b2(auth,config)
+    print('Backblaze authentication and production bucket/prefix restrictions passed. No credentials saved or database changes made.')
+
+
 def validate_b2(auth, config):
     """Pin the bucket ID; B2 may omit names for restricted keys."""
     storage_api=auth.get('apiInfo',{}).get('storageApi',{})
@@ -46,7 +63,12 @@ def stage(state, name):
         hint='Unexpected installer error; the operator can inspect the safe stage receipt.'
         if isinstance(error,urllib.error.HTTPError):
             details['http_status']=error.code
-            hint='Backblaze rejected authentication; check the key ID and application key.' if error.code==401 else 'Backblaze request failed; check its HTTP status.'
+            hint='Backblaze rejected this authentication request.' if error.code==401 else 'Backblaze request failed; check its HTTP status.'
+            try:
+                provider_code=json.loads(error.read(4096)).get('code')
+                if provider_code in {'unauthorized','unsupported','bad_auth_token','expired_auth_token','transaction_cap_exceeded'}:
+                    details['provider_code']=provider_code
+            except (ValueError,AttributeError,TypeError):pass
             error.close()
         elif isinstance(error,psycopg.Error):
             code=error.sqlstate
@@ -63,7 +85,7 @@ def stage(state, name):
         with tempfile.NamedTemporaryFile(mode='w',dir=state,delete=False) as stream:
             json.dump(details,stream);temporary=Path(stream.name)
         temporary.chmod(0o600);temporary.replace(state/'provision-status.json')
-        suffix=''.join(' '+key+'='+str(details[key]) for key in ['http_status','sqlstate'] if key in details)
+        suffix=''.join(' '+key+'='+str(details[key]) for key in ['http_status','provider_code','sqlstate'] if key in details)
         raise SystemExit('Provisioning failed at '+name+'.'+suffix+' '+hint+' No credential values were logged.') from None
 
 
@@ -86,9 +108,8 @@ def main():
         storage=getpass.getpass('Production Storage server credential (hidden; download only): ').strip()
         key_id=getpass.getpass('Separate production B2 key ID (hidden): ').strip()
         key=getpass.getpass('Separate production B2 application key (hidden): ').strip()
-        request=urllib.request.Request('https://api.backblazeb2.com/b2api/v4/b2_authorize_account',headers={'Authorization':'Basic '+base64.b64encode((key_id+':'+key).encode()).decode()})
         with stage(state,'Backblaze authentication'):
-            with urllib.request.urlopen(request,timeout=30) as response:auth=json.load(response)
+            auth=authorize_b2(key_id,key)
         with stage(state,'Backblaze bucket restriction validation'):
             validate_b2(auth,config)
         reader='dealpipe_backup_reader';password=secrets.token_urlsafe(48)
@@ -114,7 +135,10 @@ def main():
 
 if __name__=='__main__':
     if sys.argv[1:]==['--version']:
-        print('dealpipe-recovery-provision v4 (Supabase CA verified; database preflight first)')
+        print('dealpipe-recovery-provision v5 (isolated B2 check; safe provider codes)')
+    elif sys.argv[1:]==['--check-b2']:
+        with stage(Path('/var/lib/dealpipe-recovery'),'Backblaze check setup'):
+            check_b2()
     else:
         with stage(Path('/var/lib/dealpipe-recovery'),'installer setup'):
             main()

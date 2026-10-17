@@ -89,6 +89,11 @@ administration source alone does not update an immutable Nix-generated launcher.
 The narrow installer replaces owned launchers atomically instead of following
 their symlinks into the Nix store.
 
+Use `provision --check-b2` to isolate B2 authentication and bucket/prefix checks
+with only two hidden prompts. It does not ask for Supabase credentials, save keys
+or change the database. HTTP errors expose only allowlisted provider codes;
+arbitrary provider messages remain private.
+
 It needs the production direct/session database URL on **5432**, a Storage server
 credential and a separate B2 read/write key restricted to
 `qnoxslab-dealpipe-production-backups` and prefix `production/`. It verifies the

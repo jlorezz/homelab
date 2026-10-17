@@ -1,5 +1,7 @@
 import json
 import hashlib
+import base64
+import io
 from pathlib import Path
 import sys
 import tempfile
@@ -19,6 +21,24 @@ except ImportError:
 
 @unittest.skipUnless(psycopg, 'Run with the NAS psycopg runtime')
 class ProvisionDiagnosticsTests(unittest.TestCase):
+    def test_backblaze_request_uses_documented_basic_auth_pair(self):
+        with patch('provision.urllib.request.urlopen',return_value=io.BytesIO(b'{}')) as request:
+            provision.authorize_b2('fixture-id','fixture-key')
+        sent=request.call_args.args[0]
+        self.assertEqual(sent.full_url,'https://api.backblazeb2.com/b2api/v4/b2_authorize_account')
+        self.assertEqual(sent.get_header('Authorization'),'Basic '+base64.b64encode(b'fixture-id:fixture-key').decode())
+
+    def test_provider_code_is_allowlisted_and_message_stays_private(self):
+        for code in ['unsupported','unauthorized','CANARY-secret-code']:
+            with tempfile.TemporaryDirectory() as temp:
+                body=io.BytesIO(json.dumps({'code':code,'message':'CANARY-secret-message'}).encode())
+                error=urllib.error.HTTPError('https://example.invalid',401,'failure',{},body)
+                with self.assertRaises(SystemExit) as stopped:
+                    with stage(Path(temp),'Backblaze authentication'):raise error
+                receipt=(Path(temp)/'provision-status.json').read_text()
+                self.assertNotIn('CANARY',str(stopped.exception)+receipt)
+                self.assertEqual(json.loads(receipt).get('provider_code'),code if code!='CANARY-secret-code' else None)
+
     def test_supabase_ca_is_the_published_root_certificate(self):
         ca=(provision.HERE/'supabase-prod-ca-2021.crt').read_text()
         self.assertEqual(hashlib.sha256(ssl.PEM_cert_to_DER_cert(ca)).hexdigest(),

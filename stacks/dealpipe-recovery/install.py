@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Narrow, marked systemd rollout. Production timers require verified cloud recovery receipts."""
 import argparse
+from datetime import datetime
 import json
 import os
 from pathlib import Path
@@ -61,6 +62,14 @@ def main():
     subprocess.run(['systemctl','start','dealpipe-testing-ram.service','dealpipe-testing-targets.service'],check=True)
     subprocess.run(['systemctl','restart','dealpipe-testing-proxy.service'],check=True)
     if args.activate_production:
+        # These actions just passed manually. Seed persistent timer stamps from
+        # their real receipts to avoid duplicate catch-up runs on first enable.
+        receipts=json.loads((STATE/'status.json').read_text())
+        directory=Path('/var/lib/systemd/timers');directory.mkdir(mode=0o755,parents=True,exist_ok=True)
+        for action,event in [('backup','backup'),('check','check'),('restore-verify','restore_verify'),('refresh','sanitize_refresh')]:
+            timestamp=datetime.fromisoformat(receipts[event]['at']).timestamp()
+            stamp=directory/('stamp-dealpipe-production-'+action+'.timer')
+            stamp.touch();os.utime(stamp,(timestamp,timestamp))
         dropin=CONTROL/'nas-health-check.service.d/60-dealpipe.conf';dropin.parent.mkdir(exist_ok=True)
         dropin.write_text('[Service]\nEnvironment=DEALPIPE_RECOVERY_STATUS=/var/lib/dealpipe-recovery/status.json\n')
         subprocess.run(['systemctl','daemon-reload'],check=True)

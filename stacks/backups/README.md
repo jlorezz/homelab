@@ -4,7 +4,8 @@ Backblaze B2 in an EU region is the selected destination. The private bucket `qn
 `s3.eu-central-003.backblazeb2.com` are configured in `homelab.json`. The NAS is enabled through `backups.nix`; `offsite-backup.nix` remains opt-in for
 other hosts. The private credentials and independent recovery-password copy
 are installed. Deployment verification is recorded in the Brain Offsite Recovery
-runbook. Production database exports remain a separate, inactive deployment.
+runbook. Production database and Storage exports use the separate, verified
+`stacks/dealpipe-recovery` deployment and production bucket.
 
 ## Homelab data and consistency
 
@@ -27,7 +28,9 @@ independently and never mirror local deletions.
 Observed 2026-10-17 source sizes: NAS snapshot 167,361,054 bytes; agents snapshot
 644,239,808 bytes, about 0.81 GB combined logical file content. These are source
 sizes, not an upload/storage invoice. Compression, deduplication, history and B2
-prior versions determine billed storage. Production size has not been measured.
+prior versions determine billed storage. The separate production file inventory
+is 11.03 GB across 4,158 objects, plus the database archive; it is not copied into
+the Homelab bucket.
 
 ## Account and credentials
 

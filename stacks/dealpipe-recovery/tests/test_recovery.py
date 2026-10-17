@@ -16,6 +16,15 @@ from backup import private_json,record,verify_artifacts
 
 
 class PrivacyTests(unittest.TestCase):
+    def test_public_reference_periods_remain_distinct_without_allowing_customer_dates(self):
+        from datetime import date
+        policy={'tables':{'public.market_data_series':{'columns':{'period':{'strategy':'reference_period','type':'date'}}},
+                          'public.users':{'columns':{'birth_date':{'strategy':'reference_period','type':'date'}}}}}
+        sanitizer=Sanitizer(policy)
+        self.assertNotEqual(sanitizer.value('public.market_data_series','period',date(2024,1,1)),
+                            sanitizer.value('public.market_data_series','period',date(2025,1,1)))
+        with self.assertRaises(ValueError):sanitizer.value('public.users','birth_date',date(1990,1,1))
+
     def setUp(self):
         self.policy=json.loads((HERE/'tests/fixtures/policy.json').read_text())
         self.s=Sanitizer(self.policy,b'fixture-only-randomization-key')
@@ -59,6 +68,17 @@ class PrivacyTests(unittest.TestCase):
 
 
 class RecoveryTests(unittest.TestCase):
+    def test_database_retry_requires_full_file_proof_for_the_exact_current_snapshot(self):
+        from refresh import require_verified_snapshot
+        state={'backup':{'at':'2026-10-17T10:00:00+00:00','objects':3},
+               'restore_verify':{'at':'2026-10-17T11:00:00+00:00','objects':3,'snapshot_id':'snapshot-a'}}
+        require_verified_snapshot(state,'snapshot-a')
+        with self.assertRaises(ValueError):require_verified_snapshot(state,'new-snapshot-b')
+        state['backup']['at']='2026-10-17T12:00:00+00:00'
+        with self.assertRaises(ValueError):require_verified_snapshot(state,'snapshot-a')
+        state['backup']['at']='2026-10-17T10:00:00+00:00';state['restore_verify']['objects']=2
+        with self.assertRaises(ValueError):require_verified_snapshot(state,'snapshot-a')
+
     def test_activation_requires_real_recovery_and_matching_dataset_proofs(self):
         from health import check
         with tempfile.TemporaryDirectory() as temp:

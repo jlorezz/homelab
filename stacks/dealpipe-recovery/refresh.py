@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Restore encrypted recovery data privately, sanitize, then atomically publish data to testing."""
 import argparse
+from datetime import datetime
 import hashlib
 import json
 import os
@@ -12,7 +13,7 @@ import urllib.request
 import urllib.error
 import urllib.parse
 
-from backup import private_json,pg_environment,restic,run,record,verify_artifacts,private_ram
+from backup import private_json,pg_environment,restic,run,record,verify_artifacts,verify_database_artifact,private_ram
 from sanitize import sanitize,catalog,validate_policy
 
 HERE=Path(__file__).resolve().parent
@@ -46,7 +47,31 @@ def placeholder(key):
     return b'Synthetic testing placeholder. No production file content.\n','text/plain'
 
 
-def refresh(config, credentials, password, fixture=None):
+def ensure_buckets(settings,buckets):
+    headers={'apikey':settings['TEST_SERVICE_KEY'],'Authorization':'Bearer '+settings['TEST_SERVICE_KEY']}
+    api='http://127.0.0.1:18785/storage/v1'
+    for bucket in buckets:
+        body=json.dumps({'id':bucket,'name':bucket,'public':bucket=='user-avatars'}).encode()
+        req=urllib.request.Request(api+'/bucket',data=body,headers={**headers,'Content-Type':'application/json'},method='POST')
+        try:
+            with urllib.request.urlopen(req,timeout=30):pass
+        except urllib.error.HTTPError as error:
+            error.close()
+            if error.code not in (400,409):raise
+            # Existing bucket is allowed; verify identity rather than ignore arbitrary errors.
+            with urllib.request.urlopen(urllib.request.Request(api+'/bucket/'+bucket,headers=headers),timeout=30) as response:
+                existing=json.load(response)
+                if existing['id']!=bucket or existing.get('public')!=(bucket=='user-avatars'):
+                    raise ValueError('Unexpected test bucket identity or visibility')
+
+
+def require_verified_snapshot(state,snapshot):
+    proof=state['restore_verify'];backup=state['backup']
+    if proof.get('snapshot_id')!=snapshot or datetime.fromisoformat(proof['at'])<datetime.fromisoformat(backup['at']) or proof['objects']!=backup['objects']:
+        raise ValueError('A full file restore proof for the exact latest snapshot is required')
+
+
+def refresh(config, credentials, password, fixture=None,reuse_verified_files=False):
     import psycopg
     from psycopg import sql
     settings=private_json('/var/lib/dealpipe-testing/settings.json')
@@ -68,8 +93,21 @@ def refresh(config, credentials, password, fixture=None):
             # Fixture mode accepts only an operator-created, non-production archive for proving the pipeline.
             archive=Path(fixture)
         else:
-            restic(config,credentials,password,'restore','latest','--host','nas','--tag','dealpipe-production','--target',str(root))
-            verify_artifacts(root,config)
+            snapshots=json.loads(restic(config,credentials,password,'snapshots','--host','nas','--tag','dealpipe-production','--json'))
+            snapshot=max(snapshots,key=lambda item:datetime.fromisoformat(item['time']))['id']
+            if not re.fullmatch('[a-f0-9]{64}',snapshot):raise ValueError('Unexpected snapshot identifier')
+            arguments=['restore',snapshot,'--target',str(root)]
+            if reuse_verified_files:
+                state=private_json(Path(config['state_directory'])/'status.json')
+                require_verified_snapshot(state,snapshot)
+                arguments+=['--include','/database.dump','--include','/manifest.json']
+            restic(config,credentials,password,*arguments)
+            if reuse_verified_files:
+                manifest=verify_database_artifact(root,config)
+                if len(manifest['objects'])!=state['restore_verify']['objects']:raise ValueError('Restore inventory proof mismatch')
+            else:
+                manifest=verify_artifacts(root,config)
+                record(config,'restore_verify',objects=len(manifest['objects']),via='sanitized-refresh',snapshot_id=snapshot)
             archive=root/'database.dump'
         with psycopg.connect(admin,autocommit=True) as conn:
             conn.execute(sql.SQL('CREATE DATABASE {} TEMPLATE template0').format(sql.Identifier(database)))
@@ -104,17 +142,8 @@ def refresh(config, credentials, password, fixture=None):
             # Generate storage objects from synthetic metadata only, through the local Storage API.
             headers={'apikey':settings['TEST_SERVICE_KEY'],'Authorization':'Bearer '+settings['TEST_SERVICE_KEY']}
             api='http://127.0.0.1:18785/storage/v1'
-            buckets=sorted({x['bucket'] for x in result['placeholders']})
-            for bucket in buckets:
-                body=json.dumps({'id':bucket,'name':bucket,'public':bucket=='user-avatars'}).encode()
-                req=urllib.request.Request(api+'/bucket',data=body,headers={**headers,'Content-Type':'application/json'},method='POST')
-                try:
-                    with urllib.request.urlopen(req,timeout=30):pass
-                except urllib.error.HTTPError as error:
-                    if error.code not in (400,409):raise
-                    # Existing bucket is allowed; verify identity rather than ignore arbitrary errors.
-                    with urllib.request.urlopen(urllib.request.Request(api+'/bucket/'+bucket,headers=headers),timeout=30) as response:
-                        if json.load(response)['id']!=bucket:raise ValueError('Unexpected test bucket')
+            buckets=sorted(policy['allowed_buckets'])
+            ensure_buckets(settings,buckets)
             for item in result['placeholders']:
                 content,mime=placeholder(item['key'])
                 route='/object/'+item['bucket']+'/'+urllib.parse.quote(item['key'],safe='/')
@@ -131,16 +160,25 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--config',type=Path,default=HERE/'config.json')
     parser.add_argument('--fixture',type=Path)
+    parser.add_argument('--reuse-verified-file-restore',action='store_true',help='Retry only DB sanitization after a full restore of the exact latest snapshot passed')
     args=parser.parse_args();config=json.loads(args.config.read_text())
+    if args.fixture and args.reuse_verified_file_restore:raise SystemExit('Verified production restore reuse is unavailable in fixture mode')
     credentials={} if args.fixture else private_json(Path(config['state_directory'])/'credentials.json')
     try:
-        print(json.dumps(refresh(config,credentials,Path(config['state_directory'])/'repository-password',args.fixture)))
+        print(json.dumps(refresh(config,credentials,Path(config['state_directory'])/'repository-password',args.fixture,args.reuse_verified_file_restore)))
         from smoke import main as smoke
         smoke()
         from realtime_smoke import main as realtime_smoke
         realtime_smoke()
-    except Exception:
-        record(config,'failure',action='sanitize-refresh')
+    except Exception as error:
+        # Retain only diagnostic identifiers, never exception text, row values or SQL.
+        details={'error_type':type(error).__name__}
+        code=getattr(error,'sqlstate',None)
+        if code and re.fullmatch('[A-Z0-9]{5}',code):details['sqlstate']=code
+        constraint=getattr(getattr(error,'diag',None),'constraint_name',None)
+        if constraint and re.fullmatch('[A-Za-z_][A-Za-z0-9_]{0,127}',constraint):details['constraint']=constraint
+        if isinstance(error,urllib.error.HTTPError):details['http_status']=error.code;error.close()
+        record(config,'failure',action='sanitize-refresh',**details)
         raise SystemExit('Test refresh failed. Quarantine removed; inspect diagnostics privately. No ready-dataset receipt written.') from None
 
 

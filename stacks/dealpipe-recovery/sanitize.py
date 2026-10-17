@@ -37,6 +37,11 @@ class Sanitizer:
     def value(self,table,column,value):
         if value is None:return None
         spec=self.policy['tables'][table]['columns'][column];kind=spec['strategy']
+        if kind=='null':return None
+        if kind=='reference_period':
+            if table!='public.market_data_series' or column!='period' or spec['type']!='date' or type(value) is not date:
+                raise ValueError('Only the reviewed public market-data reference period may be retained')
+            return value
         if table=='auth.users':
             if column=='id':return self.identifier(value)
             if column=='instance_id':return uuid.UUID(int=0)

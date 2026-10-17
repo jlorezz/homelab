@@ -8,6 +8,7 @@ in
 
   qnoxslab.offsiteBackup.enable = true;
   qnoxslab.dealpipeRecovery.enableTesting = true;
+  qnoxslab.dealpipeRecovery.enableProduction = true;
 
   clan.core.vars.generators.nas-backup-password = {
     files.secret.secret = true;

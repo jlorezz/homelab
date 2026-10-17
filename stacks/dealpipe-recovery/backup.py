@@ -192,11 +192,16 @@ def backup(config, credentials, password):
         return {'backup':'passed','objects':len(manifest)}
 
 
-def verify_artifacts(root,config):
+def verify_database_artifact(root,config):
     root=Path(root); manifest=json.loads((root/'manifest.json').read_text())
     if manifest['project_ref']!=config['project_ref']:raise ValueError('Unexpected project in recovery snapshot')
     if file_hash(root/'database.dump')!=manifest['database_sha256']:raise ValueError('Database checksum mismatch')
     run(['pg_restore','--list',str(root/'database.dump')])
+    return manifest
+
+
+def verify_artifacts(root,config):
+    root=Path(root);manifest=verify_database_artifact(root,config)
     for item in manifest['objects']:
         filename=item['file']
         if len(filename)!=64 or any(c not in '0123456789abcdef' for c in filename):raise ValueError('Invalid object filename')

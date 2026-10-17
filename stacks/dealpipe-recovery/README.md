@@ -3,10 +3,12 @@
 This operator flow keeps hosted Dealpipe production, encrypted recovery data and
 sanitized testing separate. The NAS testing stack and synthetic export/restore,
 privacy, Auth, tenant-isolation, file-placeholder and Realtime rehearsals are
-verified. Production database/B2 credentials and an independent recovery-password
-copy are installed; B2 repository initialization has passed. The saved Storage
-key was identified as a local demo key and requires a hosted production key.
-Production timers remain disabled until real B2 recovery receipts pass.
+verified. Production credentials, an independent recovery-password copy and all
+four production timers are active. On 2026-10-17 the real database archive and
+all 4,158 uploaded files (11.03 GB source bytes) were backed up and restored with
+matching checksums. The production-derived test refresh processed 199 tables,
+retained 19,441 sanitized rows and generated 4,158 replacement files. Auth,
+tenant isolation and Realtime checks passed for that exact dataset.
 
 The application-specific policy and synthetic personas belong in the **private**
 Dealpipe repository at `ops/recovery/`. Deploy them as root-owned 0600 files under
@@ -139,7 +141,6 @@ Using the Nix-built Python runtime, the remaining operator sequence is:
 /var/lib/dealpipe-recovery/bin/operator prepare-production
 systemctl start dealpipe-production-backup.service
 systemctl start dealpipe-production-check.service
-systemctl start dealpipe-production-restore-verify.service
 systemctl start dealpipe-production-refresh.service
 /var/lib/dealpipe-recovery/bin/operator health
 /var/lib/dealpipe-recovery/bin/operator activate-production
@@ -153,6 +154,24 @@ production-derived sanitization and matching API/Realtime receipts. Set
 `qnoxslab.dealpipeRecovery.enableProduction = true` only after this verification.
 The narrow marked systemd rollout is adopted by a later normal Nix activation;
 this setup does not require a full host switch.
+
+The production refresh records full artifact-restore verification after the B2
+restore and all database/file checksums pass, before sanitization. This avoids a
+duplicate full download during first activation. The standalone monthly
+`dealpipe-production-restore-verify.service` remains available independently.
+
+For policy troubleshooting, `refresh.py --reuse-verified-file-restore` restores
+only the database and manifest, after requiring a full file-restore receipt for
+the exact latest B2 snapshot and matching current backup inventory. It rechecks
+the database checksum and leaves the original file-verification time unchanged.
+Normal scheduled refreshes still restore and verify all file bytes.
+
+Sharing-link tables are emptied and nullable property share tokens become NULL;
+blanking every unique token to the same string violates constraints. Published
+market-data reference periods retain their dates to preserve time-series keys;
+this exception is restricted to the reviewed reference column. Customer dates
+are replaced. All six reviewed Storage buckets, including empty buckets, are
+created in testing. No raw file bytes or source share credentials are published.
 
 Daily export is 02:00 with up to 15 minutes jitter; integrity checks Sunday 04:30;
 full artifact checksum restoration first-of-month 06:00; sanitized refresh Sunday

@@ -1,0 +1,27 @@
+name: Task
+description: Define an outcome and the evidence needed to finish it.
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or goal
+      description: What needs to change, and why?
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Describe the observable result that completes this work.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope and constraints
+      description: Name relevant paths, dependencies, and decisions already made.
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence and references
+      description: Link logs, screenshots, related issues, PRs, or Brain notes. Remove secrets and customer data.

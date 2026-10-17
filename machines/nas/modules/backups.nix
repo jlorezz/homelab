@@ -4,6 +4,8 @@ let
   password = config.clan.core.vars.generators.nas-backup-password.files.secret.path;
 in
 {
+  imports = [ ./offsite-backup.nix ];
+
   clan.core.vars.generators.nas-backup-password = {
     files.secret.secret = true;
     runtimeInputs = [ pkgs.openssl ];

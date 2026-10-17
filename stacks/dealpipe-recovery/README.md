@@ -91,6 +91,12 @@ discards the admin connection. The server Storage credential can be privileged;
 this process performs download operations only. None of these values belong in
 chat, Git, receipts, CI, notes or coding-agent containers.
 
+Provisioning failures report the failing stage and only allowlisted HTTP/SQLSTATE
+codes. The private `provision-status.json` contains the same safe diagnostics;
+provider response bodies, SQL exception text and credential values are excluded.
+Check whether credentials and the backup-reader role exist before retrying a
+partially completed installation. Never overwrite an existing reader blindly.
+
 From the separate trusted operator machine, `escrow_password.py` preserves the
 new Restic password bytes in a private independent file and records its checksum
 on the NAS. Import that copy into an independently accessible password manager/

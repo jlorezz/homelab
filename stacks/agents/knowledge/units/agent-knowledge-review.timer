@@ -1,0 +1,11 @@
+[Unit]
+Description=Hourly Brain source change review
+
+[Timer]
+OnBootSec=15min
+OnUnitActiveSec=1h
+Persistent=true
+Unit=agent-knowledge-review.service
+
+[Install]
+WantedBy=timers.target

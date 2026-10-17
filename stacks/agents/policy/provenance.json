@@ -1,0 +1,7 @@
+{
+  "ownership": "Locally authored policy and skills; no upstream executable code is vendored.",
+  "references": [
+    {"repository": "https://github.com/washedupdeveloper/agentic-council", "revision": "9428d4c183fe1e969c111a6bc9cfdf6e73d5bba1", "adopted": "Structured findings and explicit missing-check reporting; no score, fix loop, or dispatcher."},
+    {"repository": "https://github.com/washedupdeveloper/hermes-skills", "revision": "5566e9e5ad9760d3313304ef043ed81ec74b6a30", "adopted": "Versioned skill ownership, drift detection, and restore-verified handoffs; independently authored instructions."}
+  ]
+}

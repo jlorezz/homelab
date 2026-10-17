@@ -1,0 +1,17 @@
+[Unit]
+Description=Collect agent proposals into the human review Inbox
+RequiresMountsFor=/storage/obsidian
+
+[Service]
+Type=oneshot
+ExecStart=@python@ @runtime@/brain.py collect --spool @state@/proposals --brain /storage/obsidian/Brain
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateNetwork=true
+ReadWritePaths=/storage/obsidian/Brain/Inbox
+ReadWritePaths=@state@/evidence
+UMask=0002
+MemoryMax=128M
+CPUQuota=10%

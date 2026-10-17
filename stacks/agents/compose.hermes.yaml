@@ -1,0 +1,40 @@
+services:
+  hermes:
+    # See build-hermes.py for the pinned 0.22.2 dashboard launcher fix.
+    image: ${HERMES_IMAGE:?Set a pinned Hermes image or the patched content-tagged image}
+    group_add: ["1100"]
+    restart: unless-stopped
+    command: [gateway, run]
+    ports: ["127.0.0.1:9119:9119"]
+    volumes:
+      - /var/lib/agent-platform/hermes:/opt/data
+      - /var/lib/agent-platform/projects/hermes:/workspace
+      - /var/lib/agent-platform/policy:/opt/agent-policy:ro
+      - /run/agent-knowledge:/run/agent-knowledge:ro
+      - /var/lib/agent-platform/bin/brain.py:/usr/local/lib/agent-brain.py:ro
+      - /var/lib/agent-platform/knowledge/proposals/hermes:/knowledge-proposals
+      - /var/lib/agent-workloads/heavy.lock:/run/agent-workload.lock
+      - /var/lib/agent-platform/bin/agent-workload:/usr/local/bin/agent-workload:ro
+      - /var/lib/agent-platform/bin/workload.py:/usr/local/lib/agent-workload.py:ro
+    environment:
+      TZ: Europe/Berlin
+      HERMES_DASHBOARD: "1"
+      HERMES_DASHBOARD_HOST: "0.0.0.0"
+      HERMES_DASHBOARD_BASIC_AUTH_USERNAME: agent
+      HERMES_DASHBOARD_BASIC_AUTH_PASSWORD: ${HERMES_DASHBOARD_PASSWORD:?Set the dashboard password}
+      HERMES_DASHBOARD_BASIC_AUTH_SECRET: ${HERMES_DASHBOARD_SECRET:?Set the dashboard session signing secret}
+      HERMES_UID: "1101"
+      HERMES_GID: "1101"
+    cgroup_parent: agent-workloads.slice
+    cpus: 2.0
+    mem_limit: 6g
+    memswap_limit: 6g
+    pids_limit: 1024
+    healthcheck:
+      test: [CMD, curl, --fail, --silent, --output, /dev/null, "http://127.0.0.1:9119/"]
+      interval: 30s
+      timeout: 5s
+      start_period: 90s
+      retries: 3
+    # No host container socket, host SSH credentials, or NAS data mounts.
+    # The official image's s6 init requires its default capabilities.

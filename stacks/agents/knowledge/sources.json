@@ -1,0 +1,352 @@
+{
+  "sources": [
+    {
+      "id": "brain-inbox",
+      "project": "shared",
+      "type": "files",
+      "path": "/storage/obsidian/Brain/Inbox",
+      "include": [
+        "*.md"
+      ],
+      "status": "proposed",
+      "vault": "NAS"
+    },
+    {
+      "id": "homelab-repo",
+      "project": "homelab",
+      "type": "repo",
+      "path": "/var/lib/agent-platform/knowledge/repos/homelab.git",
+      "ref": "refs/heads/main",
+      "url": "https://github.com/jlorezz/homelab",
+      "include": [
+        "*.md",
+        "*.mdx"
+      ],
+      "status": "current",
+      "public": true
+    },
+    {
+      "id": "dealpipe-repo",
+      "project": "dealpipe",
+      "type": "repo",
+      "path": "/var/lib/agent-platform/knowledge/repos/dealpipe.git",
+      "ref": "refs/heads/development",
+      "url": "https://github.com/dealpipe/dealpipe",
+      "include": [
+        "*.md",
+        "*.mdx"
+      ],
+      "status": "current",
+      "credential_file": "/var/lib/agent-platform/secrets/knowledge-dealpipe-github-token"
+    },
+    {
+      "id": "homelab-prs",
+      "project": "homelab",
+      "type": "files",
+      "path": "/var/lib/agent-platform/knowledge/evidence/homelab/prs",
+      "include": [
+        "*.md"
+      ],
+      "status": "historical",
+      "format": "pull_requests"
+    },
+    {
+      "id": "dealpipe-prs",
+      "project": "dealpipe",
+      "type": "files",
+      "path": "/var/lib/agent-platform/knowledge/evidence/dealpipe/prs",
+      "include": [
+        "*.md"
+      ],
+      "status": "historical",
+      "format": "pull_requests"
+    },
+    {
+      "id": "homelab-receipts",
+      "project": "homelab",
+      "type": "files",
+      "path": "/var/lib/agent-platform/knowledge/evidence/homelab/receipts",
+      "include": [
+        "*.md",
+        "*.json"
+      ],
+      "status": "historical"
+    },
+    {
+      "id": "dealpipe-receipts",
+      "project": "dealpipe",
+      "type": "files",
+      "path": "/var/lib/agent-platform/knowledge/evidence/dealpipe/receipts",
+      "include": [
+        "*.md",
+        "*.json"
+      ],
+      "status": "historical"
+    },
+    {
+      "id": "homelab-admin",
+      "project": "homelab",
+      "type": "files",
+      "path": "/etc/nixos/homelab",
+      "include": [
+        "*.md"
+      ],
+      "exclude": [
+        "docs/obsidian/*"
+      ],
+      "status": "deployed"
+    },
+    {
+      "id": "homelab-issues",
+      "project": "homelab",
+      "type": "files",
+      "path": "/var/lib/agent-platform/knowledge/evidence/homelab/issues",
+      "include": [
+        "*.md"
+      ],
+      "status": "work-tracking",
+      "format": "issues"
+    },
+    {
+      "id": "dealpipe-issues",
+      "project": "dealpipe",
+      "type": "files",
+      "path": "/var/lib/agent-platform/knowledge/evidence/dealpipe/issues",
+      "include": [
+        "*.md"
+      ],
+      "status": "work-tracking",
+      "format": "issues"
+    },
+    {
+      "id": "homelab-milestones",
+      "project": "homelab",
+      "type": "files",
+      "path": "/var/lib/agent-platform/knowledge/evidence/homelab/milestones",
+      "include": [
+        "*.md"
+      ],
+      "status": "work-tracking",
+      "format": "issues"
+    },
+    {
+      "id": "dealpipe-milestones",
+      "project": "dealpipe",
+      "type": "files",
+      "path": "/var/lib/agent-platform/knowledge/evidence/dealpipe/milestones",
+      "include": [
+        "*.md"
+      ],
+      "status": "work-tracking",
+      "format": "issues"
+    },
+    {
+      "id": "brain-homelab",
+      "project": "homelab",
+      "type": "files",
+      "path": "/storage/obsidian/Brain/Projects/homelab",
+      "include": [
+        "*.md"
+      ],
+      "status": "reference",
+      "vault": "NAS",
+      "exclude": [
+        "History/*",
+        "Plans/*"
+      ],
+      "approval_metadata": true
+    },
+    {
+      "id": "homelab-history",
+      "project": "homelab",
+      "type": "files",
+      "path": "/storage/obsidian/Brain/Projects/homelab",
+      "include": [
+        "History/*.md"
+      ],
+      "status": "historical",
+      "vault": "NAS"
+    },
+    {
+      "id": "homelab-plans",
+      "project": "homelab",
+      "type": "files",
+      "path": "/storage/obsidian/Brain/Projects/homelab",
+      "include": [
+        "Plans/*.md"
+      ],
+      "status": "draft",
+      "vault": "NAS"
+    },
+    {
+      "id": "brain-dealpipe",
+      "project": "dealpipe",
+      "type": "files",
+      "path": "/storage/obsidian/Brain/Projects/dealpipe",
+      "include": [
+        "*.md"
+      ],
+      "status": "reference",
+      "vault": "NAS",
+      "exclude": [
+        "History/*",
+        "Plans/*"
+      ],
+      "approval_metadata": true
+    },
+    {
+      "id": "dealpipe-history",
+      "project": "dealpipe",
+      "type": "files",
+      "path": "/storage/obsidian/Brain/Projects/dealpipe",
+      "include": [
+        "History/*.md"
+      ],
+      "status": "historical",
+      "vault": "NAS"
+    },
+    {
+      "id": "dealpipe-plans",
+      "project": "dealpipe",
+      "type": "files",
+      "path": "/storage/obsidian/Brain/Projects/dealpipe",
+      "include": [
+        "Plans/*.md"
+      ],
+      "status": "draft",
+      "vault": "NAS"
+    },
+    {
+      "id": "brain-sbms",
+      "project": "sbms",
+      "type": "files",
+      "path": "/storage/obsidian/Brain/Projects/sbms",
+      "include": [
+        "*.md"
+      ],
+      "status": "reference",
+      "vault": "NAS",
+      "exclude": [
+        "History/*",
+        "Plans/*"
+      ],
+      "approval_metadata": true
+    },
+    {
+      "id": "sbms-history",
+      "project": "sbms",
+      "type": "files",
+      "path": "/storage/obsidian/Brain/Projects/sbms",
+      "include": [
+        "History/*.md"
+      ],
+      "status": "historical",
+      "vault": "NAS"
+    },
+    {
+      "id": "sbms-plans",
+      "project": "sbms",
+      "type": "files",
+      "path": "/storage/obsidian/Brain/Projects/sbms",
+      "include": [
+        "Plans/*.md"
+      ],
+      "status": "draft",
+      "vault": "NAS"
+    },
+    {
+      "id": "brain-personal",
+      "project": "personal",
+      "type": "files",
+      "path": "/storage/obsidian/Brain/Personal",
+      "include": [
+        "*.md"
+      ],
+      "status": "reference",
+      "vault": "NAS"
+    },
+    {
+      "id": "brain-system",
+      "project": "shared",
+      "type": "files",
+      "path": "/storage/obsidian/Brain/System",
+      "include": [
+        "*.md"
+      ],
+      "status": "reference",
+      "vault": "NAS"
+    },
+    {
+      "id": "brain-templates",
+      "project": "shared",
+      "type": "files",
+      "path": "/storage/obsidian/Brain/Templates",
+      "include": [
+        "*.md"
+      ],
+      "status": "template",
+      "vault": "NAS"
+    },
+    {
+      "id": "brain-archive",
+      "project": "shared",
+      "type": "files",
+      "path": "/storage/obsidian/Brain/Archive",
+      "include": [
+        "*.md"
+      ],
+      "status": "historical",
+      "vault": "NAS"
+    },
+    {
+      "id": "brain-navigation",
+      "project": "shared",
+      "type": "files",
+      "path": "/storage/obsidian/Brain",
+      "include": [
+        "Start Here.md"
+      ],
+      "status": "reference",
+      "vault": "NAS"
+    },
+    {
+      "id": "vault-instructions",
+      "project": "shared",
+      "type": "files",
+      "path": "/storage/obsidian/",
+      "include": [
+        "AGENTS.md",
+        "CLAUDE.md"
+      ],
+      "status": "reference",
+      "vault": "NAS"
+    },
+    {
+      "id": "brain-deal-pipe-ug",
+      "project": "dealpipe",
+      "type": "files",
+      "path": "/storage/obsidian/Brain/Areas/deal-pipe-ug",
+      "include": [
+        "Start Here.md",
+        "Company/Company Overview.md"
+      ],
+      "status": "reference",
+      "vault": "NAS"
+    },
+    {
+      "id": "deal-pipe-ug-drafts",
+      "project": "dealpipe",
+      "type": "files",
+      "path": "/storage/obsidian/Brain/Areas/deal-pipe-ug",
+      "include": [
+        "Operations/*.md",
+        "Sales/*.md",
+        "Marketing/*.md",
+        "Finance/*.md",
+        "Company/Records and Responsibilities.md"
+      ],
+      "status": "draft",
+      "vault": "NAS"
+    }
+  ]
+}

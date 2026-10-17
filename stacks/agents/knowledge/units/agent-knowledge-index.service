@@ -1,0 +1,17 @@
+[Unit]
+Description=Index allowlisted shared Brain sources
+RequiresMountsFor=/storage/obsidian
+
+[Service]
+Type=oneshot
+ExecStart=@python@ @runtime@/brain.py index --config @state@/sources.json --db @state@/index.sqlite
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateNetwork=true
+ReadWritePaths=@state@
+UMask=0022
+MemoryMax=512M
+CPUQuota=25%
+TimeoutStartSec=10min

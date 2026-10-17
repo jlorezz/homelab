@@ -1,0 +1,10 @@
+[Unit]
+Description=Refresh repository and merged PR knowledge hourly
+
+[Timer]
+OnBootSec=3min
+OnUnitInactiveSec=1h
+Persistent=true
+
+[Install]
+WantedBy=timers.target

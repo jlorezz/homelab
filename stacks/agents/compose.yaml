@@ -1,0 +1,38 @@
+# Deploy through Portainer. Load the flake-built image first; see README.md.
+services:
+  t3:
+    hostname: nas
+    image: ${AGENT_IMAGE:?Set AGENT_IMAGE to the loaded flake image tag}
+    restart: unless-stopped
+    init: true
+    user: "1100:1100"
+    working_dir: /workspace/homelab
+    command: [t3, serve, --host, 0.0.0.0, --port, "3773", --auto-bootstrap-project-from-cwd]
+    ports:
+      - "127.0.0.1:3773:3773"
+    volumes:
+      - /var/lib/agent-platform/t3:/home/agent
+      - /var/lib/agent-platform/projects/t3:/workspace
+      - /var/lib/agent-platform/policy:/opt/agent-policy:ro
+      - /run/agent-knowledge:/run/agent-knowledge:ro
+      - /var/lib/agent-platform/bin/brain.py:/usr/local/lib/agent-brain.py:ro
+      - /var/lib/agent-platform/knowledge/proposals/t3:/knowledge-proposals
+      - /var/lib/agent-workloads/heavy.lock:/run/agent-workload.lock
+    cgroup_parent: agent-workloads.slice
+    cpus: 3.0
+    mem_limit: 10g
+    memswap_limit: 10g
+    pids_limit: 2048
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    environment:
+      TZ: Europe/Berlin
+    healthcheck:
+      test: [CMD, curl, --fail, --silent, --output, /dev/null, "http://127.0.0.1:3773/"]
+      interval: 30s
+      timeout: 5s
+      start_period: 60s
+      retries: 3
+
+  # Independent OpenCode workspace; T3 also has OpenCode installed internally.
+  # Enable by adding compose.opencode.yaml as an additional file in Portainer.

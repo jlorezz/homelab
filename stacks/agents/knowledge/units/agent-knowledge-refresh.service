@@ -1,0 +1,20 @@
+[Unit]
+Description=Refresh committed repository docs and merged PR evidence
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+Environment=GIT_TERMINAL_PROMPT=0
+Environment=HOME=/var/empty
+Environment=GH_CONFIG_DIR=/var/empty
+ExecStart=@python@ @runtime@/brain.py refresh --config @state@/sources.json
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=@state@/repos @state@/evidence
+UMask=0022
+MemoryMax=512M
+CPUQuota=25%
+TimeoutStartSec=30min

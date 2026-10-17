@@ -94,7 +94,6 @@
             (python3.withPackages (p: [ p.pyyaml ]))
           ];
           text = ''
-            export HERMES_CONFIG_TEMPLATE=${./stacks/agents/hermes-config.yaml}
             export OPENCODE_CONFIG_TEMPLATE=${./stacks/agents/opencode.json}
             export AGENT_POLICY_SOURCE=${./stacks/agents}
             exec bash ${./stacks/agents/prepare-workspaces.sh} "$@"

@@ -51,7 +51,6 @@ in {
       "d ${state}/proposals 0755 root root -"
       "d ${state}/proposals/t3 0700 agent-platform agent-platform -"
       "d ${state}/proposals/opencode 0700 agent-platform agent-platform -"
-      "d ${state}/proposals/hermes 0700 hermes-agent hermes-agent -"
       "d ${state}/proposals/desktop 0700 jlorezz users -"
       "d ${state}/evidence/homelab/receipts 0755 agent-platform agent-platform -"
       "d ${state}/evidence/dealpipe/receipts 0755 agent-platform agent-platform -"

@@ -1,6 +1,10 @@
 name: Task
 description: Define an outcome and the evidence needed to finish it.
 body:
+  - type: markdown
+    attributes:
+      value: |
+        Add this issue to the Homelab project. Move it to **Ready** when you want T3 to implement it, run independent review and required checks, and open a PR. Specify exact owned paths first. Merge and deployment remain separate.
   - type: textarea
     id: problem
     attributes:
@@ -19,7 +23,7 @@ body:
     id: scope
     attributes:
       label: Scope and constraints
-      description: Name relevant paths, dependencies, and decisions already made.
+      description: Name exact owned paths, dependencies, and decisions already made. Required before moving to Ready for agent delivery.
   - type: textarea
     id: evidence
     attributes:

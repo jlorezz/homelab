@@ -23,7 +23,7 @@ def connect(source, apply=False):
     stack = api.request('GET', f'/stacks/{stack["Id"]}')
     original = api.request('GET', f'/stacks/{stack["Id"]}/file')['StackFileContent']
     compose = yaml.safe_load(original)
-    for name in ['t3', 'opencode', 'hermes']:
+    for name in ['t3', 'opencode']:
         if name not in compose['services']: continue
         desired = yaml.safe_load((source / ('compose.yaml' if name == 't3' else f'compose.{name}.yaml')).read_text())['services'][name]
         service = compose['services'][name]
@@ -36,8 +36,6 @@ def connect(source, apply=False):
                 if any(v.split(':')[1] == target for v in volumes):
                     raise ValueError('Conflicting mount target; inspect before deployment')
                 volumes.append(volume)
-        if name == 'hermes':
-            service['group_add'] = list(dict.fromkeys([*service.get('group_add', []), '1100']))
     content = yaml.safe_dump(compose, sort_keys=False)
     print('Services:', ', '.join(compose['services']), '; images, ports, environment and other stack settings preserved')
     if not apply: return
@@ -51,7 +49,7 @@ def connect(source, apply=False):
             with os.fdopen(fd, 'w') as stream: stream.write(value)
     containers = [c for c in api.request('GET', '/endpoints/2/docker/containers/json')
                   if c.get('Labels', {}).get('com.docker.compose.project') == 'homelab-agents'
-                  and c.get('Labels', {}).get('com.docker.compose.service') in {'t3', 'hermes', 'opencode'}]
+                  and c.get('Labels', {}).get('com.docker.compose.service') in {'t3', 'opencode'}]
     stopped = []
     try:
         for container in containers:

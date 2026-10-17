@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "coordinator_thread_id": "30958bff-b1f6-419c-8434-5315d21930b8",
+  "enabled_after": "2026-10-17T19:40:00Z",
+  "approvers": [
+    "jlorezz"
+  ],
+  "repositories": {
+    "jlorezz/homelab": {
+      "base": "main",
+      "project_owner": "jlorezz",
+      "project_number": 3,
+      "checkout": "/home/jlorezz/projects/homelab",
+      "coordinator_thread_id": "30958bff-b1f6-419c-8434-5315d21930b8",
+      "scheduled_task_id": "scheduled-task:command:mcp:7a79e0fc-9f9f-4f9d-8785-67ca6845ad35:schedule-task:agent-flow-dispatcher-v1"
+    },
+    "dealpipe/dealpipe": {
+      "base": "development",
+      "project_owner": "dealpipe",
+      "project_number": 1,
+      "checkout": "/home/jlorezz/projects/dealpipe",
+      "coordinator_thread_id": "mcp:2e619e32-a616-4611-ae28-8f5c7cdf355a",
+      "scheduled_task_id": "scheduled-task:command:mcp:a9dbb03c-d41f-446e-8338-126bd6c4ddda:schedule-task:dealpipe-ready-queue-v1"
+    }
+  },
+  "authorization_mode": "project_ready"
+}

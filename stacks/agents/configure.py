@@ -14,9 +14,6 @@ import yaml
 
 HERE = Path(__file__).resolve().parent
 RUNTIME = "/opt/agent-policy/current"
-PLATFORMS = ("cli", "discord", "telegram", "slack", "whatsapp", "signal", "qqbot", "yuanbao", "teams", "google_chat")
-# Explicit bundles: workers cannot delegate, schedule jobs, or send tool-driven messages.
-HERMES_TOOLS = ["file", "terminal", "web", "skills", "todo", "session_search"]
 
 
 def jsonc(text):
@@ -88,28 +85,6 @@ def managed_opencode(current, template, enabled):
     return result
 
 
-def managed_hermes(current, enabled=()):
-    result = dict(current)
-    result["skills"] = {**result.get("skills", {})}
-    dirs = result["skills"].get("external_dirs", [])
-    if not isinstance(dirs, list):
-        raise ValueError("Hermes skills.external_dirs must be a list")
-    result["skills"]["external_dirs"] = list(dict.fromkeys([*dirs, f"{RUNTIME}/skills"]))
-    # These keys are implemented in the pinned Hermes tools/approval.py.
-    result["approvals"] = {**result.get("approvals", {}), "mode": "smart",
-                           "cron_mode": "deny", "single_query_mode": "deny", "unattended_mode": "deny"}
-    servers = dict(result.get("mcp_servers", {}))
-    servers.pop("shared-brain", None)
-    tools = list(HERMES_TOOLS)
-    if "shared-brain" in enabled:
-        servers["shared-brain"] = {"command": "python3", "args": ["/usr/local/lib/agent-brain.py", "bridge"]}
-        tools.append("mcp-shared-brain")
-    result["mcp_servers"] = servers
-    result["platform_toolsets"] = {**result.get("platform_toolsets", {}),
-                                  **{name: tools for name in PLATFORMS}}
-    return result
-
-
 def provision(state, source=HERE, apply=False, enabled=None):
     if enabled is None:
         enabled = json.loads((source / "access.json").read_text())["enabled_mcp"]
@@ -146,18 +121,6 @@ def provision(state, source=HERE, apply=False, enabled=None):
             raise ValueError("Malformed Claude policy block")
         previous = re.sub(re.escape(start) + r".*?" + re.escape(end), "", previous, flags=re.S).rstrip()
         desired.append((target, previous + "\n\n" + start + "\n@" + RUNTIME + "/AGENTS.md\n" + end + "\n", 1100, "text"))
-    target = state / "hermes/config.yaml"
-    refuse_symlink_path(state, target)
-    old = yaml.safe_load(target.read_text()) if target.exists() else yaml.safe_load((source / "hermes-config.yaml").read_text())
-    desired.append((target, managed_hermes(old or {}, enabled), 1101, "yaml"))
-    soul = state / "hermes/SOUL.md"
-    refuse_symlink_path(state, soul)
-    previous = soul.read_text() if soul.exists() else ""
-    start, end = "<!-- homelab-agent-policy:start -->", "<!-- homelab-agent-policy:end -->"
-    if previous.count(start) != previous.count(end) or previous.count(start) > 1:
-        raise ValueError("Malformed managed policy block in Hermes SOUL.md")
-    previous = re.sub(re.escape(start) + r".*?" + re.escape(end), "", previous, flags=re.S).rstrip()
-    desired.append((soul, previous + "\n\n" + start + "\n" + (policy / "AGENTS.md").read_text().rstrip() + "\n" + end + "\n", 1101, "text"))
     desired.extend([
         (state / "bin/workload.py", (source / "workload.py").read_text(), None, "text"),
         (state / "bin/agent-workload", '#!/bin/sh\nexec python3 /usr/local/lib/agent-workload.py "$@"\n', None, "text"),
@@ -211,7 +174,7 @@ def provision(state, source=HERE, apply=False, enabled=None):
             os.fchmod(fd, 0o666)
         finally:
             os.close(fd)
-    for worker, uid in (("t3", 1100), ("opencode", 1100), ("hermes", 1101)):
+    for worker, uid in (("t3", 1100), ("opencode", 1100)):
         home = state / worker
         home.mkdir(parents=True, exist_ok=True)
         if os.geteuid() == 0:

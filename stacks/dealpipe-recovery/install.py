@@ -47,8 +47,11 @@ def main():
     bindir=STATE/'bin';bindir.mkdir(mode=0o700,exist_ok=True)
     for name,script in [('provision','provision.py'),('recovery','backup.py'),('operator','operations.py')]:
         wrapper=bindir/name
-        wrapper.write_text(f'#!/bin/sh\nexec "{sys.executable}" "{HERE/script}" "$@"\n')
-        wrapper.chmod(0o700)
+        temporary=bindir/(name+'.new')
+        fd=os.open(temporary,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o700)
+        with os.fdopen(fd,'w') as stream:
+            stream.write(f'#!/bin/sh\nexec "{sys.executable}" "{HERE/script}" "$@"\n')
+        temporary.replace(wrapper)
     binary=Path(sys.executable).resolve()
     if str(binary).startswith('/nix/store/'):
         root=Path('/nix/var/nix/gcroots/dealpipe-recovery-python')

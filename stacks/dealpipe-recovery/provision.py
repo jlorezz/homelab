@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import secrets
+import sys
 import tempfile
 import urllib.error
 import urllib.request
@@ -108,5 +109,8 @@ def main():
 
 
 if __name__=='__main__':
-    with stage(Path('/var/lib/dealpipe-recovery'),'installer setup'):
-        main()
+    if sys.argv[1:]==['--version']:
+        print('dealpipe-recovery-provision v3 (pinned bucket ID; safe stage diagnostics)')
+    else:
+        with stage(Path('/var/lib/dealpipe-recovery'),'installer setup'):
+            main()

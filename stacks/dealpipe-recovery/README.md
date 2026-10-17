@@ -83,6 +83,12 @@ Run the hidden-prompt installer from the operator's SSH terminal:
 ssh -t root@100.125.180.36 /var/lib/dealpipe-recovery/bin/provision
 ```
 
+After updating it, verify the **actual launcher**, including any Nix-store target,
+with `/var/lib/dealpipe-recovery/bin/provision --version`. Editing the deployed
+administration source alone does not update an immutable Nix-generated launcher.
+The narrow installer replaces owned launchers atomically instead of following
+their symlinks into the Nix store.
+
 It needs the production direct/session database URL on **5432**, a Storage server
 credential and a separate B2 read/write key restricted to
 `qnoxslab-dealpipe-production-backups` and prefix `production/`. It verifies the

@@ -94,6 +94,8 @@ chat, Git, receipts, CI, notes or coding-agent containers.
 Provisioning failures report the failing stage and only allowlisted HTTP/SQLSTATE
 codes. The private `provision-status.json` contains the same safe diagnostics;
 provider response bodies, SQL exception text and credential values are excluded.
+Bucket restrictions are checked against the ID from the operator's bucket
+screenshot; a missing bucket name does not require granting list-all-bucket-names.
 Check whether credentials and the backup-reader role exist before retrying a
 partially completed installation. Never overwrite an existing reader blindly.
 

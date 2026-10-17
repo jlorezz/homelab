@@ -8,13 +8,30 @@ import urllib.error
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 try:
     import psycopg
-    from provision import stage
+    from provision import stage,validate_b2
 except ImportError:
     psycopg=None
 
 
 @unittest.skipUnless(psycopg, 'Run with the NAS psycopg runtime')
 class ProvisionDiagnosticsTests(unittest.TestCase):
+    def test_bucket_id_accepts_restricted_keys_without_disclosing_bucket_names(self):
+        config={'b2_bucket_id':'expected-id'}
+        scope={'buckets':[{'id':'expected-id','name':None}],'namePrefix':'production/',
+               'capabilities':['listFiles','readFiles','writeFiles']}
+        validate_b2({'apiInfo':{'storageApi':{'allowed':scope}}},config)
+        legacy={k:v for k,v in scope.items() if k!='buckets'}
+        legacy.update(bucketId='expected-id',bucketName=None)
+        validate_b2({'allowed':legacy},config)
+        for buckets in [None,[],[{'id':'homelab-id','name':'qnoxslab-dealpipe-production-backups'}],
+                        [{'id':'expected-id'},{'id':'another-id'}]]:
+            with self.assertRaises(SystemExit):
+                validate_b2({'apiInfo':{'storageApi':{'allowed':{**scope,'buckets':buckets}}}},config)
+        for change in [{'namePrefix':None},{'namePrefix':'homelab/'},{'capabilities':['writeFiles']}]:
+            with self.assertRaises(SystemExit):
+                validate_b2({'apiInfo':{'storageApi':{'allowed':{**scope,**change}}}},config)
+        with self.assertRaises(SystemExit):validate_b2({'unexpected':'CANARY-secret'},config)
+
     def test_provider_errors_never_publish_credentials_or_response_bodies(self):
         cases=[urllib.error.HTTPError('https://example.invalid/CANARY-secret',401,'CANARY-secret',{},None),
                psycopg.errors.InsufficientPrivilege('CANARY-password and SQL'),

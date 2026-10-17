@@ -19,6 +19,22 @@ from psycopg.conninfo import conninfo_to_dict,make_conninfo
 from backup import HERE,private_json,write_private,source_connection
 
 
+def validate_b2(auth, config):
+    """Pin the bucket ID; B2 may omit names for restricted keys."""
+    storage_api=auth.get('apiInfo',{}).get('storageApi',{})
+    scope=storage_api.get('allowed',auth.get('allowed'))
+    if not isinstance(scope,dict):
+        raise SystemExit('Backblaze returned no recognizable key restrictions; no database changes were made.')
+    buckets=scope.get('buckets')
+    if buckets is None and scope.get('bucketId'):
+        buckets=[{'id':scope['bucketId'],'name':scope.get('bucketName')}]
+    if not isinstance(buckets,list) or len(buckets)!=1 or buckets[0].get('id')!=config['b2_bucket_id']:
+        raise SystemExit('B2 key is not restricted to the production bucket ID shown in your bucket screenshot. Select qnoxslab-dealpipe-production-backups only.')
+    if scope.get('namePrefix')!='production/':raise SystemExit('Restrict the B2 key to production/ prefix')
+    if not {'listFiles','readFiles','writeFiles'}<=set(scope.get('capabilities',[])):
+        raise SystemExit('B2 export/restore needs listing, reading and writing within its production prefix')
+
+
 @contextmanager
 def stage(state, name):
     """Persist allowlisted diagnostics only; provider/SQL exception text can contain secrets."""
@@ -65,12 +81,8 @@ def main():
     request=urllib.request.Request('https://api.backblazeb2.com/b2api/v4/b2_authorize_account',headers={'Authorization':'Basic '+base64.b64encode((key_id+':'+key).encode()).decode()})
     with stage(state,'Backblaze authentication'):
         with urllib.request.urlopen(request,timeout=30) as response:auth=json.load(response)
-    scope=auth['apiInfo']['storageApi']['allowed']
-    if [b.get('name') for b in (scope.get('buckets') or [])]!=['qnoxslab-dealpipe-production-backups']:
-        raise SystemExit('B2 credential must be restricted to the separate production bucket')
-    if scope.get('namePrefix')!='production/':raise SystemExit('Restrict the B2 key to production/ prefix')
-    if not {'listFiles','readFiles','writeFiles'}<=set(scope.get('capabilities',[])):
-        raise SystemExit('B2 export/restore needs listing, reading and writing within its production prefix')
+    with stage(state,'Backblaze bucket restriction validation'):
+        validate_b2(auth,config)
     reader='dealpipe_backup_reader';password=secrets.token_urlsafe(48)
     with stage(state,'production database connection'):
         connection=psycopg.connect(make_conninfo(**values),connect_timeout=15)
@@ -96,5 +108,5 @@ def main():
 
 
 if __name__=='__main__':
-    try:main()
-    except Exception:raise SystemExit('Provisioning failed. Inspect NAS privately; never paste credentials or raw diagnostics.') from None
+    with stage(Path('/var/lib/dealpipe-recovery'),'installer setup'):
+        main()

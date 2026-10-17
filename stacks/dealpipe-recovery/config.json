@@ -2,6 +2,7 @@
   "project_ref": "cjitzyhinaoawxhyqkuv",
   "storage_url": "https://cjitzyhinaoawxhyqkuv.supabase.co/storage/v1",
   "repository": "s3:https://s3.eu-central-003.backblazeb2.com/qnoxslab-dealpipe-production-backups/production",
+  "b2_bucket_id": "633709d9b207489faa180015",
   "state_directory": "/var/lib/dealpipe-recovery",
   "workspace": "/run/dealpipe-recovery-private",
   "schemas": [

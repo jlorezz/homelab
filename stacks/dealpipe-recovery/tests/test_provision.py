@@ -21,6 +21,14 @@ except ImportError:
 
 @unittest.skipUnless(psycopg, 'Run with the NAS psycopg runtime')
 class ProvisionDiagnosticsTests(unittest.TestCase):
+    def test_local_demo_and_anon_storage_keys_are_rejected_before_network_access(self):
+        def token(payload):return 'e30.'+base64.urlsafe_b64encode(json.dumps(payload).encode()).decode().rstrip('=')+'.fixture'
+        config={'storage_url':'https://fixture.supabase.co/storage/v1'}
+        with patch('provision.urllib.request.build_opener') as network:
+            for key in [token({'iss':'supabase-demo','role':'service_role'}),token({'iss':'supabase','role':'anon'}),'sb_publishable_fixture']:
+                with self.assertRaises(SystemExit):provision.verify_storage(config,key)
+            network.assert_not_called()
+
     def test_backblaze_request_uses_documented_basic_auth_pair(self):
         with patch('provision.urllib.request.urlopen',return_value=io.BytesIO(b'{}')) as request:
             provision.authorize_b2('fixture-id','fixture-key')

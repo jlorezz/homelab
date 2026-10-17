@@ -37,6 +37,34 @@ def check_b2():
     print('Backblaze authentication and production bucket/prefix restrictions passed. No credentials saved or database changes made.')
 
 
+def verify_storage(config,key):
+    if key.count('.')==2:
+        try:claims=json.loads(base64.urlsafe_b64decode(key.split('.')[1]+'==='))
+        except (ValueError,TypeError):raise SystemExit('Storage credential is not a valid server key') from None
+        if claims.get('iss') in ['supabase-demo','supabase-demo-project']:
+            raise SystemExit('This is a local demo key. Use the hosted production project API Keys page.')
+        if claims.get('role')!='service_role':raise SystemExit('Use a production server/service-role key, not an anon key')
+    elif not key.startswith('sb_secret_'):raise SystemExit('Use a production server/service-role key')
+    class NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self,*args,**kwargs):return None
+    request=urllib.request.Request(config['storage_url']+'/bucket',headers={'apikey':key,'Authorization':'Bearer '+key})
+    with urllib.request.build_opener(NoRedirect).open(request,timeout=30) as response:
+        if not isinstance(json.load(response),list):raise ValueError('Unexpected Storage response')
+
+
+def replace_storage_key():
+    if os.geteuid()!=0:raise SystemExit('Run in an interactive NAS root terminal')
+    config=json.loads((HERE/'config.json').read_text());state=Path(config['state_directory'])
+    path=state/'credentials.json';credentials=private_json(path)
+    key=getpass.getpass('Hosted PRODUCTION Storage server/service-role key (hidden): ').strip()
+    with stage(state,'production Storage credential verification'):verify_storage(config,key)
+    credentials['storage_read_key']=key
+    with tempfile.NamedTemporaryFile(mode='w',dir=state,delete=False) as stream:
+        json.dump(credentials,stream);temporary=Path(stream.name)
+    temporary.chmod(0o600);temporary.replace(path)
+    print('Production Storage key verified and replaced privately. Database and B2 credentials preserved.')
+
+
 def validate_b2(auth, config):
     """Pin the bucket ID; B2 may omit names for restricted keys."""
     storage_api=auth.get('apiInfo',{}).get('storageApi',{})
@@ -63,7 +91,7 @@ def stage(state, name):
         hint='Unexpected installer error; the operator can inspect the safe stage receipt.'
         if isinstance(error,urllib.error.HTTPError):
             details['http_status']=error.code
-            hint='Backblaze rejected this authentication request.' if error.code==401 else 'Backblaze request failed; check its HTTP status.'
+            hint='Provider rejected this request; check the credential for the named stage.'
             try:
                 provider_code=json.loads(error.read(4096)).get('code')
                 if provider_code in {'unauthorized','unsupported','bad_auth_token','expired_auth_token','transaction_cap_exceeded'}:
@@ -106,6 +134,7 @@ def main():
         connection=psycopg.connect(make_conninfo(**values),connect_timeout=15)
     with connection:
         storage=getpass.getpass('Production Storage server credential (hidden; download only): ').strip()
+        with stage(state,'production Storage credential verification'):verify_storage(config,storage)
         key_id=getpass.getpass('Separate production B2 key ID (hidden): ').strip()
         key=getpass.getpass('Separate production B2 application key (hidden): ').strip()
         with stage(state,'Backblaze authentication'):
@@ -135,10 +164,13 @@ def main():
 
 if __name__=='__main__':
     if sys.argv[1:]==['--version']:
-        print('dealpipe-recovery-provision v5 (isolated B2 check; safe provider codes)')
+        print('dealpipe-recovery-provision v6 (verified production Storage key replacement)')
     elif sys.argv[1:]==['--check-b2']:
         with stage(Path('/var/lib/dealpipe-recovery'),'Backblaze check setup'):
             check_b2()
+    elif sys.argv[1:]==['--replace-storage-key']:
+        with stage(Path('/var/lib/dealpipe-recovery'),'Storage credential replacement'):
+            replace_storage_key()
     else:
         with stage(Path('/var/lib/dealpipe-recovery'),'installer setup'):
             main()

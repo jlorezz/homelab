@@ -3,8 +3,10 @@
 This operator flow keeps hosted Dealpipe production, encrypted recovery data and
 sanitized testing separate. The NAS testing stack and synthetic export/restore,
 privacy, Auth, tenant-isolation, file-placeholder and Realtime rehearsals are
-verified. Production export credentials still require private installation;
-production timers must remain disabled until real B2 recovery receipts pass.
+verified. Production database/B2 credentials and an independent recovery-password
+copy are installed; B2 repository initialization has passed. The saved Storage
+key was identified as a local demo key and requires a hosted production key.
+Production timers remain disabled until real B2 recovery receipts pass.
 
 The application-specific policy and synthetic personas belong in the **private**
 Dealpipe repository at `ops/recovery/`. Deploy them as root-owned 0600 files under
@@ -93,6 +95,11 @@ Use `provision --check-b2` to isolate B2 authentication and bucket/prefix checks
 with only two hidden prompts. It does not ask for Supabase credentials, save keys
 or change the database. HTTP errors expose only allowlisted provider codes;
 arbitrary provider messages remain private.
+
+If only Storage authentication needs correction, run `provision
+--replace-storage-key`. It asks for one hidden value, checks it against the hosted
+production Storage API, then atomically replaces only that field. Failed checks
+preserve the existing credential file. Local demo and anon keys are rejected.
 
 It needs the production direct/session database URL on **5432**, a Storage server
 credential and a separate B2 read/write key restricted to

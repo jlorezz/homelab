@@ -8,6 +8,7 @@ import argparse
 from contextlib import contextmanager
 from datetime import datetime, timezone
 import fcntl
+from fnmatch import fnmatchcase
 import json
 import os
 from pathlib import Path
@@ -65,6 +66,39 @@ def read_config(path):
                                                     or not settings["coordinator_thread_id"].strip()):
             raise QueueError("repository coordinator_thread_id must be a nonempty string when specified")
     return config
+
+
+def model_route(config, role, risk="uncertain", paths=(), escalations_used=0):
+    """Choose an explicit T3 target; never estimate account billing or dispatch."""
+    routing = config.get("model_routing")
+    if not routing or role not in routing["profiles"]:
+        raise QueueError("configured model profile required for this role")
+    if escalations_used < 0:
+        raise QueueError("escalations-used cannot be negative")
+    normalized = []
+    for path in paths:
+        path = path.removeprefix("./")
+        if not path or path.startswith("/") or "\\" in path or ".." in path.split("/"):
+            raise QueueError("owned paths must be repository-relative without traversal")
+        normalized.append(path)
+    sensitive = [path for path in normalized if any(
+        fnmatchcase(path, pattern) for pattern in routing["sensitive_paths"])]
+    profile = role
+    reason = "bounded role default"
+    if role == "escalation" or (role in {"implementation", "review", "research"}
+                                and (risk != "routine" or sensitive
+                                     or (role in {"implementation", "review"} and not normalized))):
+        profile = "escalation"
+        reason = ("sensitive owned paths: " + ", ".join(sensitive) if sensitive else
+                  "high/uncertain risk or missing implementation/review ownership")
+    if profile == "escalation" and escalations_used >= routing["escalation_limit"]:
+        raise QueueError("model escalation budget exhausted; report unresolved findings")
+    target = routing["profiles"][profile]
+    if not target.get("providerInstanceId") or not target.get("model"):
+        raise QueueError("model routing target must explicitly name provider and model")
+    return {"role": role, "risk": risk, "profile": profile, "target": target,
+            "reason": reason, "escalations_used": escalations_used,
+            "escalation_limit": routing["escalation_limit"], "actual_cost": "unknown"}
 
 
 def comments(repository, number):
@@ -543,6 +577,11 @@ def main():
     parser.add_argument("--state-file", type=Path, default=DEFAULT_STATE)
     parser.add_argument("--board-file", type=Path, default=DEFAULT_BOARD)
     commands = parser.add_subparsers(dest="command", required=True)
+    route_parser = commands.add_parser("route", help="select an explicit worker model without dispatch")
+    route_parser.add_argument("--role", required=True, choices=("coordinator", "implementation", "review", "research", "verification", "escalation"))
+    route_parser.add_argument("--risk", choices=("routine", "high", "uncertain"), default="uncertain")
+    route_parser.add_argument("--path", action="append", default=[])
+    route_parser.add_argument("--escalations-used", type=int, default=0)
     scan_parser = commands.add_parser("scan", help="read-only authorized queue and interrupted claims")
     scan_parser.add_argument("--repository", help="scan only this configured repository")
     for name in ("board-init", "board-tick"):
@@ -566,7 +605,9 @@ def main():
     args = parser.parse_args()
     try:
         config = read_config(args.config)
-        if args.command in ("board-init", "board-tick"):
+        if args.command == "route":
+            result = model_route(config, args.role, args.risk, args.path, args.escalations_used)
+        elif args.command in ("board-init", "board-tick"):
             result = board_update(config, args.board_file, args.repository, args.command == "board-init")
             if args.command == "board-tick":
                 result = scan(config, args.state_file, args.repository, args.board_file)

@@ -40,6 +40,33 @@ filter (scan is read-only). A scheduler tick is a wake-up, not new authorization
 IDs from issue receipts and local reservations before considering candidates.
 Do not create additional coordinators, recurring dispatchers or top-level threads.
 
+## Model routing
+
+Read model_routing in the coordinator registry. Before delegation run the adapter's
+`route --role ROLE --risk routine|high|uncertain --path OWNED_PATH` (repeat --path).
+Use its explicit target provider/model/options in delegate_task after verifying
+availability with orchestrator_capabilities. Stop on unavailable models; never
+silently inherit or substitute a more expensive target. Queue coordination uses
+GPT-6 Luna low; routine implementation medium, review high, research medium and
+verification low. Standard service tier is explicit; no priority multiplier.
+
+Routine work must be bounded and understood, with exact implementation/review
+ownership. Authentication, tenant isolation, permissions/RLS, trusted GraphQL,
+migrations, billing and infrastructure activation require the stronger GPT-6.1 Sol
+high profile; uncertain architecture and material unresolved findings do too.
+Path matching is a conservative backstop, not complete risk detection: classify
+semantic impact from the issue and actual diff even when filenames look harmless.
+One justified stronger-model escalation fits inside the existing repair/review
+budget; it does not add another loop. If unresolved, ask the human. High-risk
+planning is a bounded stronger research task; return queue handling to Luna.
+
+Reviewer remains independent and read-only regardless of model. Run deterministic
+verification first; do not spawn a second model to repeat passing checks. Record
+role, target, risk/reason, review findings, repair count and actual usage/cost when
+available in receipts/results. Otherwise report cost unknown. API list prices are
+context, not measured savings or this account's subscription charges. Compare
+review usefulness and rework on real issues before lowering defaults further.
+
 ## Delivery
 
 1. Read the live issue and verify Scope, Acceptance criteria, Owns (paths), and

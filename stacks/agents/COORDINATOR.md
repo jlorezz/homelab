@@ -111,6 +111,38 @@ before recovery. `recover --issue URL --authorization-id ID --reason TEXT` unloc
 explicit progress recording; it never automatically requeues or expires a claim.
 Do not retry an uncertain launch without checking the retained task/thread IDs.
 
+## Model costs and escalation
+
+The registry's model_routing profiles select explicit T3 targets. Both live
+coordinators use Codex / GPT-6 Luna with low reasoning and Standard service tier.
+Routine workers use Luna: implementation/research medium reasoning, review high,
+verification low. High or uncertain implementation/review/research uses GPT-6.1 Sol
+high. Sensitive-path matches force the stronger target, but the coordinator must
+also classify semantic risks such as authorization, tenant isolation, RLS, trusted
+GraphQL, billing, migrations and infrastructure activation. Missing ownership is
+never a reason to guess or dispatch; resolve it before claiming implementation.
+
+Run `python3 stacks/agents/coordinator.py route --role review --risk routine
+--path apps/website/src/button.tsx` as one command to inspect a selection without
+dispatching or accessing GitHub. Pass the returned target to delegate_task after
+checking the live catalog. Unavailable models block rather than silently increase
+spend. One stronger escalation is allowed within the existing repair/review budget;
+remaining uncertainty goes to the human. High-risk planning can use a bounded
+stronger research child without changing the coordinator's routine model.
+
+T3 schedules snapshot the creator model. Changing a conversation model does not
+update an existing routine: disable the old routine, recreate it under the desired
+model, verify a manual scheduled run reports that model in recentRuns, then remove
+the old routine and update the registry. A successful scheduler dispatch alone
+does not prove the provider run used the desired model.
+
+Record model, risk, selection reason, actionable review findings and repair count
+in issue receipts/results. Provider-reported usage/cost is preferred; otherwise it
+is unknown. Public API pricing is not the account's Codex subscription billing and
+must not be presented as measured savings. Defaults are an initial policy, not a
+quality benchmark; evaluate them on real deliveries before further downgrades.
+Pricing checked 2026-10-17: https://developers.openai.com/api/docs/pricing.
+
 ## Routines and recovery
 
 Each coordinator owns a five-minute queue tick bound to its existing conversation.

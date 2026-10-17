@@ -3,3 +3,6 @@ result
 __pycache__/
 *.pyc
 .agent-artifacts/
+
+# Application privacy inventories belong in private Dealpipe Git, never this public repo.
+/stacks/dealpipe-recovery/sanitization-policy.json

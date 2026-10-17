@@ -37,6 +37,23 @@ def main():
         action = failure.get("action", "").replace("-", "_")
         if action in state and failure["at"] > state[action]["at"]:
             raise RuntimeError("Latest offsite operation failed")
+    production = os.environ.get("DEALPIPE_RECOVERY_STATUS")
+    if production:
+        state = json.loads(Path(production).read_text())
+        for action, hours in (("backup", 36), ("check", 8 * 24), ("restore_verify", 35 * 24), ("sanitize_refresh", 8 * 24)):
+            age = datetime.now(timezone.utc) - datetime.fromisoformat(state[action]["at"])
+            if age < timedelta(minutes=-5) or age > timedelta(hours=hours):
+                raise RuntimeError(f"Production recovery {action} is missing or stale")
+        if state["sanitize_refresh"].get("source") != "production-backup":
+            raise RuntimeError("Only a synthetic recovery rehearsal has completed")
+        if state["testing_smoke"]["sanitized_at"] != state["sanitize_refresh"]["at"]:
+            raise RuntimeError("Latest dataset has no matching API smoke receipt")
+        if state["testing_realtime"]["sanitized_at"] != state["sanitize_refresh"]["at"]:
+            raise RuntimeError("Latest dataset has no matching Realtime receipt")
+        failure = state.get("failure", {})
+        action = failure.get("action", "").replace("-", "_")
+        if action in state and failure["at"] > state[action]["at"]:
+            raise RuntimeError("Latest production recovery action failed")
     print("NAS health OK: required mounts present, ZFS ONLINE, NAS and agent backups younger than 36h")
 
 

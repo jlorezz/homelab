@@ -42,8 +42,8 @@ class SelectionTests(unittest.TestCase):
             path = Path(temp) / 'status.json'
             path.write_text(json.dumps(state))
             self.assertEqual(backup.execute('health'), {'health': 'passed'})
-            state['failure'] = {'at': datetime.now(timezone.utc).isoformat(), 'action': 'copy'}
-            path.write_text(json.dumps(state))
+            backup.record('failure', action='copy')
+            state = json.loads(path.read_text())
             with self.assertRaises(ValueError):
                 backup.execute('health')
             del state['failure']; del state['restore_test']

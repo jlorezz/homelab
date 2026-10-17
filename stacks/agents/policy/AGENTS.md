@@ -93,3 +93,12 @@ and `Brain/Projects/homelab/Runbooks/Brain Operations and Recovery.md`.
 `Brain/System/Source Change Review.md` explains the hourly source review queue.
 All clients of shared-brain can read the same indexed material; a project filter
 is not an access control. Do not connect customer-facing or untrusted agents.
+
+Dealpipe recovery and testing are separate operator/agent capabilities. The NAS
+operator guide is indexed as `dealpipe-recovery-operations`; search it before
+using the shared backend. `/workspace/.dealpipe-testing.env` is an opt-in,
+sanitized backend environment, not a default replacement for checkout/CI data.
+Coordinate worktree isolation and shared refreshes. Never mount or copy production
+export credentials, raw archives, recovery keys, cache keys or quarantine data
+into a worker or knowledge proposal. Operator recovery lives outside agent
+containers; historical backup receipts do not authorize production access.

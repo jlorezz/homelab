@@ -78,10 +78,10 @@ class Backup:
         snapshots = json.loads(self.command(True, 'snapshots', '--json'))
         return select_snapshots(snapshots, self.config['groups'], self.config['max_source_age_hours'])
 
-    def record(self, action, **fields):
+    def record(self, event, **fields):
         path = self.state / 'status.json'
         state = json.loads(path.read_text()) if path.exists() else {}
-        state[action] = {'at': timestamp().isoformat(), **fields}
+        state[event] = {'at': timestamp().isoformat(), **fields}
         with tempfile.NamedTemporaryFile(mode='w', dir=self.state, delete=False) as stream:
             json.dump(state, stream, indent=2)
             temporary = Path(stream.name)

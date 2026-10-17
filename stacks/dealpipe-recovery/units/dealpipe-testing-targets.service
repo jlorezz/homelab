@@ -1,0 +1,11 @@
+[Unit]
+Description=Resolve private test-stack endpoints
+After=docker.service docker-portainer.service
+ConditionPathExists=/var/lib/dealpipe-testing/settings.json
+[Service]
+Type=oneshot
+ExecStart=@python@ @source@/deploy.py --refresh-proxy-only
+Restart=on-failure
+RestartSec=10s
+[Install]
+WantedBy=multi-user.target

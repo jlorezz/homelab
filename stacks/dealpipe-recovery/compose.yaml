@@ -1,0 +1,260 @@
+services:
+  db:
+    restart: unless-stopped
+    networks:
+      testing:
+        aliases:
+        - dealpipe-testing-db
+    security_opt: &id001
+    - no-new-privileges:true
+    cpus: 1
+    mem_limit: 1g
+    logging: &id002
+      driver: none
+    image: public.ecr.aws/supabase/postgres@sha256:99b1729aeb0bac314445024fc149fbd39306170b61dd50800ccf180327ab3459
+    environment:
+      POSTGRES_PASSWORD: ${TEST_DB_PASSWORD}
+      PGPASSWORD: ${TEST_DB_PASSWORD}
+      POSTGRES_DB: postgres
+      JWT_SECRET: ${TEST_JWT_SECRET}
+    volumes:
+    - /storage/dealpipe-testing/db:/var/lib/postgresql/data
+    - /var/lib/dealpipe-testing/init.sql:/docker-entrypoint-initdb.d/init-scripts/99-testing.sql:ro
+    ports:
+    - 127.0.0.1:18786:5432
+    healthcheck:
+      test:
+      - CMD
+      - pg_isready
+      - -U
+      - postgres
+      - -h
+      - 127.0.0.1
+      interval: 5s
+      timeout: 5s
+      retries: 30
+  quarantine:
+    restart: unless-stopped
+    networks:
+    - quarantine
+    security_opt: *id001
+    cpus: 1
+    mem_limit: 3g
+    logging: *id002
+    image: public.ecr.aws/supabase/postgres@sha256:99b1729aeb0bac314445024fc149fbd39306170b61dd50800ccf180327ab3459
+    environment:
+      POSTGRES_PASSWORD: ${QUARANTINE_DB_PASSWORD}
+      PGPASSWORD: ${QUARANTINE_DB_PASSWORD}
+      POSTGRES_DB: postgres
+    volumes:
+    - /var/lib/dealpipe-testing/quarantine-init.sql:/docker-entrypoint-initdb.d/init-scripts/99-quarantine.sql:ro
+    - /run/dealpipe-recovery-quarantine:/var/lib/postgresql/data
+    ports:
+    - 127.0.0.1:18766:5432
+    command:
+    - postgres
+    - -c
+    - cron.database_name=postgres
+    - -c
+    - shared_preload_libraries=pg_stat_statements
+    - -c
+    - listen_addresses=*
+    memswap_limit: 3g
+    ulimits:
+      core:
+        soft: 0
+        hard: 0
+  auth:
+    restart: unless-stopped
+    networks: &id003
+    - testing
+    security_opt: *id001
+    cpus: 0.5
+    mem_limit: 256m
+    logging:
+      driver: json-file
+      options:
+        max-size: 5m
+        max-file: '1'
+    image: public.ecr.aws/supabase/gotrue@sha256:362659ca70eaa75ba05bbaf963caa84c1c5afe5e8fbf0777e17b830dd5f0f60a
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      GOTRUE_API_HOST: 0.0.0.0
+      GOTRUE_API_PORT: '9999'
+      API_EXTERNAL_URL: http://127.0.0.1:18785/auth/v1
+      GOTRUE_DB_DRIVER: postgres
+      GOTRUE_DB_DATABASE_URL: postgres://supabase_auth_admin:${TEST_DB_PASSWORD}@db:5432/postgres
+      GOTRUE_SITE_URL: http://localhost:3000
+      GOTRUE_URI_ALLOW_LIST: http://localhost:3000/**,http://127.0.0.1:3000/**
+      GOTRUE_DISABLE_SIGNUP: 'false'
+      GOTRUE_JWT_SECRET: ${TEST_JWT_SECRET}
+      GOTRUE_JWT_ADMIN_ROLES: service_role
+      GOTRUE_JWT_AUD: authenticated
+      GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
+      GOTRUE_JWT_EXP: '3600'
+      GOTRUE_EXTERNAL_EMAIL_ENABLED: 'true'
+      GOTRUE_MAILER_AUTOCONFIRM: 'false'
+      GOTRUE_SMTP_HOST: mail
+      GOTRUE_SMTP_PORT: '1025'
+      GOTRUE_SMTP_ADMIN_EMAIL: noreply@example.invalid
+      GOTRUE_SMTP_SENDER_NAME: Dealpipe Testing
+      GOTRUE_MAILER_URLPATHS_CONFIRMATION: /auth/v1/verify
+      GOTRUE_MAILER_URLPATHS_RECOVERY: /auth/v1/verify
+      GOTRUE_MAILER_URLPATHS_INVITE: /auth/v1/verify
+      GOTRUE_MAILER_URLPATHS_EMAIL_CHANGE: /auth/v1/verify
+      GOTRUE_EXTERNAL_PHONE_ENABLED: 'false'
+      GOTRUE_HOOK_CUSTOM_ACCESS_TOKEN_ENABLED: ${TEST_AUTH_HOOK_ENABLED}
+      GOTRUE_HOOK_CUSTOM_ACCESS_TOKEN_URI: pg-functions://postgres/public/custom_access_token_hook
+      GOTRUE_SMTP_MAX_FREQUENCY: 1s
+  rest:
+    restart: unless-stopped
+    networks: *id003
+    security_opt: *id001
+    cpus: 0.5
+    mem_limit: 256m
+    logging: *id002
+    image: public.ecr.aws/supabase/postgrest@sha256:5922bde07147b82b1c9d8f749e48c1e5b99ebb233f3888bb7ab65f07cf4ac82d
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGRST_DB_URI: postgres://authenticator:${TEST_DB_PASSWORD}@db:5432/postgres
+      PGRST_DB_SCHEMAS: public
+      PGRST_DB_EXTRA_SEARCH_PATH: public,extensions
+      PGRST_DB_ANON_ROLE: anon
+      PGRST_JWT_SECRET: ${TEST_JWT_SECRET}
+  storage:
+    restart: unless-stopped
+    networks: *id003
+    security_opt: *id001
+    cpus: 0.5
+    mem_limit: 512m
+    logging: *id002
+    image: public.ecr.aws/supabase/storage-api@sha256:28424184c9f699790cc190f78ddf7d6abfb5c87af78af260529a394d12c135e9
+    depends_on:
+      db:
+        condition: service_healthy
+      rest:
+        condition: service_started
+    environment:
+      ANON_KEY: ${TEST_ANON_KEY}
+      SERVICE_KEY: ${TEST_SERVICE_KEY}
+      POSTGREST_URL: http://rest:3000
+      PGRST_JWT_SECRET: ${TEST_JWT_SECRET}
+      DATABASE_URL: postgres://supabase_storage_admin:${TEST_DB_PASSWORD}@db:5432/postgres
+      FILE_SIZE_LIMIT: '524288000'
+      STORAGE_BACKEND: file
+      FILE_STORAGE_BACKEND_PATH: /var/lib/storage
+      TENANT_ID: testing
+      REGION: local
+      GLOBAL_S3_BUCKET: testing
+      ENABLE_IMAGE_TRANSFORMATION: 'true'
+      IMGPROXY_URL: http://imgproxy:5001
+    volumes:
+    - /storage/dealpipe-testing/objects:/var/lib/storage
+  gateway:
+    restart: unless-stopped
+    networks:
+      testing:
+        aliases:
+        - dealpipe-testing-api
+    security_opt: *id001
+    cpus: 0.5
+    mem_limit: 256m
+    logging: *id002
+    image: public.ecr.aws/supabase/kong@sha256:1b53405d8680a09d6f44494b7990bf7da2ea43f84a258c59717d4539abf09f6d
+    depends_on:
+    - auth
+    - rest
+    - storage
+    environment:
+      KONG_DATABASE: 'off'
+      KONG_PROXY_LISTEN: 0.0.0.0:8000
+      KONG_ADMIN_LISTEN: 'off'
+      KONG_PLUGINS: key-auth,cors,request-transformer
+      KONG_DNS_ORDER: LAST,A,CNAME
+      KONG_NGINX_WORKER_PROCESSES: '1'
+      KONG_DECLARATIVE_CONFIG: /home/kong/testing.yml
+    ports:
+    - 127.0.0.1:18785:8000
+    volumes:
+    - /var/lib/dealpipe-testing/gateway.yml:/home/kong/testing.yml:ro
+  mail:
+    restart: unless-stopped
+    networks: *id003
+    security_opt: *id001
+    cpus: 0.5
+    mem_limit: 128m
+    logging: *id002
+    image: public.ecr.aws/supabase/mailpit@sha256:37a38e48e9338cd7e89dfeb487f37b02ebfcd9cb23111bed2d345e79d37d6dd6
+    environment:
+      MP_SMTP_BIND_ADDR: 0.0.0.0:1025
+      MP_UI_BIND_ADDR: 0.0.0.0:8025
+    ports:
+    - 127.0.0.1:18788:8025
+  realtime:
+    image: supabase/realtime@sha256:768b559241dd234c4e8852c5c0f504e598b80f1df2ad4dd78d5486fbed2f17a2
+    restart: unless-stopped
+    networks:
+      testing:
+        aliases:
+        - realtime-dev.supabase-realtime
+    cpus: 0.5
+    mem_limit: 1g
+    security_opt:
+    - no-new-privileges:true
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PORT: '4000'
+      DB_HOST: db
+      DB_PORT: '5432'
+      DB_USER: supabase_admin
+      DB_PASSWORD: ${TEST_DB_PASSWORD}
+      DB_NAME: postgres
+      DB_AFTER_CONNECT_QUERY: SET search_path TO _realtime
+      DB_ENC_KEY: ${TEST_REALTIME_ENC_KEY}
+      API_JWT_SECRET: ${TEST_JWT_SECRET}
+      SECRET_KEY_BASE: ${TEST_REALTIME_SECRET_BASE}
+      METRICS_JWT_SECRET: ${TEST_JWT_SECRET}
+      ERL_AFLAGS: -proto_dist inet_tcp +S 2:2
+      DNS_NODES: ''''''
+      RLIMIT_NOFILE: '10000'
+      APP_NAME: realtime
+      SEED_SELF_HOST: 'true'
+      RUN_JANITOR: 'true'
+      DISABLE_HEALTHCHECK_LOGGING: 'true'
+    logging:
+      driver: json-file
+      options:
+        max-size: 5m
+        max-file: '1'
+  imgproxy:
+    image: darthsim/imgproxy@sha256:73c5dda13199745b0d2d00e4149d4a589c5b2e205dbf335ca05eca8276b54712
+    restart: unless-stopped
+    networks:
+    - testing
+    cpus: 0.5
+    mem_limit: 512m
+    user: 0:0
+    security_opt:
+    - no-new-privileges:true
+    cap_drop:
+    - ALL
+    volumes:
+    - /storage/dealpipe-testing/objects:/var/lib/storage:ro
+    environment:
+      IMGPROXY_BIND: :5001
+      IMGPROXY_LOCAL_FILESYSTEM_ROOT: /
+      IMGPROXY_USE_ETAG: 'true'
+      IMGPROXY_ENABLE_WEBP_DETECTION: 'true'
+    logging:
+      driver: none
+networks:
+  testing:
+    internal: true
+  quarantine:
+    internal: true

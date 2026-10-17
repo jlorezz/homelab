@@ -1,0 +1,20 @@
+{
+  "project_ref": "cjitzyhinaoawxhyqkuv",
+  "storage_url": "https://cjitzyhinaoawxhyqkuv.supabase.co/storage/v1",
+  "repository": "s3:https://s3.eu-central-003.backblazeb2.com/qnoxslab-dealpipe-production-backups/production",
+  "state_directory": "/var/lib/dealpipe-recovery",
+  "workspace": "/run/dealpipe-recovery-private",
+  "schemas": [
+    "public",
+    "auth",
+    "storage",
+    "drizzle",
+    "supabase_migrations",
+    "dealpipe_authz",
+    "vault",
+    "extensions"
+  ],
+  "policy_file": "/var/lib/dealpipe-recovery/sanitization-policy.json",
+  "personas_file": "/var/lib/dealpipe-recovery/testing-personas.sql",
+  "cache_directory": "/storage/backups/dealpipe-encrypted-object-cache"
+}

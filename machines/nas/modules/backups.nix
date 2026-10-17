@@ -4,9 +4,10 @@ let
   password = config.clan.core.vars.generators.nas-backup-password.files.secret.path;
 in
 {
-  imports = [ ./offsite-backup.nix ];
+  imports = [ ./offsite-backup.nix ./dealpipe-recovery.nix ];
 
   qnoxslab.offsiteBackup.enable = true;
+  qnoxslab.dealpipeRecovery.enableTesting = true;
 
   clan.core.vars.generators.nas-backup-password = {
     files.secret.secret = true;

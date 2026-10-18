@@ -64,6 +64,8 @@ jobs:
           for file in flake.nix packages/*.nix machines/nas/modules/agent-platform.nix machines/nas/modules/agent-knowledge.nix machines/nas/modules/offsite-backup.nix machines/nas/modules/dealpipe-recovery.nix machines/nas/modules/github-runner.nix; do
             nix-instantiate --parse "$file" >/dev/null
           done
+      - name: Evaluate complete NAS generation
+        run: nix eval --raw .#nixosConfigurations.nas.config.system.build.toplevel.drvPath
       - name: Build and check exact application runtimes
         run: nix build .#agent-runtimes --print-build-logs
       - name: Build development image when requested

@@ -1,6 +1,7 @@
 [Unit]
 Description=Resolve private test-stack endpoints
-After=docker.service docker-portainer.service
+After=docker.service docker-portainer.service tailscale-serve.service
+Wants=tailscale-serve.service
 ConditionPathExists=/var/lib/dealpipe-testing/settings.json
 [Service]
 Type=oneshot

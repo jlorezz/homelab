@@ -236,7 +236,7 @@ def install(config):
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action',choices=['install-credentials','init','backup','check','restore-verify'])
+    parser.add_argument('action',choices=['install-credentials','init','backup','check','restore-verify','retention'])
     parser.add_argument('--config',type=Path,default=HERE/'config.json')
     args=parser.parse_args();config=json.loads(args.config.read_text())
     if args.action=='install-credentials':install(config);return
@@ -248,6 +248,13 @@ def main():
             if copy['sha256']!=hashlib.sha256(password.read_bytes()).hexdigest():raise ValueError('Independent recovery-password copy must be verified before initialization')
             restic(config,credentials,password,'init');result={'initialized':True}
         elif args.action=='backup':result=backup(config,credentials,password)
+        elif args.action=='retention':
+            from health import check
+            check(Path(config['state_directory'])/'status.json',ignore_failure='retention')
+            restic(config,credentials,password,'check')
+            restic(config,credentials,password,'forget','--host','nas','--tag','dealpipe-production',
+                   '--keep-daily','30','--keep-weekly','8','--keep-monthly','6','--prune','--max-repack-size','1G')
+            record(config,'retention');result={'retention':'passed'}
         elif args.action=='check':
             restic(config,credentials,password,'check','--read-data-subset=5%');record(config,'check');result={'check':'passed'}
         else:result=verify_restore(config,credentials,password)

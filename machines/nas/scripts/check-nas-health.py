@@ -12,6 +12,9 @@ def command(*args):
 
 
 def main():
+    for timer in os.environ.get("BACKUP_REQUIRED_TIMERS", "").split():
+        if command("systemctl", "is-active", timer) != "active":
+            raise RuntimeError(f"Required backup timer is inactive: {timer}")
     for mount in ("/storage", "/storage/obsidian", "/storage/media", "/storage/docker-dataset"):
         source = command("findmnt", "--mountpoint", mount, "--noheadings", "--output", "SOURCE")
         if source != "storage" and not source.startswith("storage/"):
@@ -35,7 +38,7 @@ def main():
                 raise RuntimeError(f"Offsite {action} receipt is missing or stale")
         failure = state.get("failure", {})
         action = failure.get("action", "").replace("-", "_")
-        if action in state and failure["at"] > state[action]["at"]:
+        if failure.get("at", "") > state.get(action, {}).get("at", ""):
             raise RuntimeError("Latest offsite operation failed")
     production = os.environ.get("DEALPIPE_RECOVERY_STATUS")
     if production:
@@ -52,7 +55,7 @@ def main():
             raise RuntimeError("Latest dataset has no matching Realtime receipt")
         failure = state.get("failure", {})
         action = failure.get("action", "").replace("-", "_")
-        if action in state and failure["at"] > state[action]["at"]:
+        if failure.get("at", "") > state.get(action, {}).get("at", ""):
             raise RuntimeError("Latest production recovery action failed")
     print("NAS health OK: required mounts present, ZFS ONLINE, NAS and agent backups younger than 36h")
 

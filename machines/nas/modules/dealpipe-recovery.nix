@@ -16,8 +16,8 @@ let
   names = builtins.filter (name: cfg.enableProduction || lib.hasPrefix "dealpipe-testing-" name) allNames;
   path = lib.makeBinPath [ pkgs.postgresql_18 pkgs.restic pkgs.docker pkgs.util-linux pkgs.coreutils ];
   render = name: builtins.replaceStrings
-    [ "@python@" "@source@" "Environment=PATH=/run/current-system/sw/bin" "[Service]" ]
-    [ "${python}/bin/python3" "${source}" "Environment=PATH=${path}" "[Service]\nEnvironment=AGENT_OPERATOR_LIBRARY=${../../../stacks/agents}" ]
+    [ "@python@" "@source@" "@failure@" "Environment=PATH=/run/current-system/sw/bin" "[Service]" ]
+    [ "${python}/bin/python3" "${source}" "${../../../stacks/backups/failure.py}" "Environment=PATH=${path}" "[Service]\nEnvironment=AGENT_OPERATOR_LIBRARY=${../../../stacks/agents}" ]
     (builtins.readFile (source + "/units/${name}"));
 in {
   options.qnoxslab.dealpipeRecovery = {
@@ -34,7 +34,7 @@ in {
           ++ lib.optional (lib.hasSuffix ".timer" name) "timers.target";
       };
     }) names);
-    system.activationScripts.dealpipeRecoveryAdopt = lib.stringAfter [ "etc" ] ''
+    system.activationScripts.dealpipeRecoveryAdopt = lib.mkIf cfg.enableProduction (lib.stringAfter [ "etc" ] ''
       if [ -f /etc/systemd/system.control/.dealpipe-recovery-managed ]; then
         ${lib.concatMapStringsSep "\n" (name: ''
           rm -f /etc/systemd/system.control/${name}
@@ -45,7 +45,7 @@ in {
         rm -f /etc/systemd/system.control/.dealpipe-recovery-managed
         rm -f /nix/var/nix/gcroots/dealpipe-recovery-python
       fi
-    '';
+    '');
     environment.systemPackages = [ operator provision operations ];
     systemd.tmpfiles.rules = [
       "d /var/lib/dealpipe-recovery 0700 root root -"

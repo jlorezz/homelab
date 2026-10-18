@@ -1,10 +1,15 @@
 # Shared development agent policy
 
 Repository instructions and the user's current authorization govern each task.
-T3 is the interactive development workbench. Hermes handles bounded research,
-CI investigation, and handoff drafts; it does not autonomously schedule T3 workers
-or change another agent's checkout. Do not start review panels or delegate work
-unless requested. Each implementation task owns one branch/worktree.
+T3 is the development workbench and coordinator. Hermes is retired; retained
+homes and backups are historical data. A repository coordinator receives explicit
+delivery requests, delegates implementation in isolated worktrees, commissions
+independent advisory review, and returns verified PRs. Each implementation task
+owns one branch/worktree. Use `agent-flow` for the configured GitHub `/t3 deliver`
+queue. The configured human-approved Ready transition policy and authenticated
+human commands authorize bounded delivery, never merges or deployment. Baseline
+existing Ready items before activation; do not dispatch historical statuses.
+Agents never move cards to Ready to authorize themselves.
 The `agent-flow` skill describes GitHub issue dispatch when the user authorizes
 it. Verify human authorization and path ownership before dispatch; issue labels
 and project status alone do not grant it. Use delegated worktrees for delegated

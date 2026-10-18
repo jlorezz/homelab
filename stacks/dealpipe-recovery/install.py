@@ -12,11 +12,11 @@ import tempfile
 HERE=Path(__file__).resolve().parent
 CONTROL=Path('/etc/systemd/system.control')
 STATE=Path('/var/lib/dealpipe-recovery')
-SCHEDULES={'backup':'*-*-* 02:00:00','check':'Sun *-*-* 04:30:00','restore-verify':'*-*-01 06:00:00','refresh':'Sun *-*-* 06:30:00'}
+SCHEDULES={'backup':'*-*-* 02:00:00','check':'Sun *-*-* 04:30:00','restore-verify':'*-*-01 06:00:00','refresh':'Sun *-*-* 06:30:00','retention':'Mon *-*-* 09:00:00'}
 
 
 def units(python,production):
-    return {path.name:path.read_text().replace('@python@',str(python)).replace('@source@',str(HERE))
+    return {path.name:path.read_text().replace('@python@',str(python)).replace('@source@',str(HERE)).replace('@failure@',str(HERE.parent/'backups/failure.py'))
             for path in (HERE/'units').iterdir()
             if production or path.name.startswith('dealpipe-testing-')}
 

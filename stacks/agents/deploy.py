@@ -4,7 +4,6 @@
 import argparse
 import http.client
 import json
-import re
 from pathlib import Path
 import stat
 import socket
@@ -89,9 +88,6 @@ def main():
     parser.add_argument("--wait-seconds", type=int, default=600, help="Maximum time to wait for asynchronous Portainer deployment")
     parser.add_argument("--with-opencode", action="store_true")
     parser.add_argument("--opencode-password-file")
-    parser.add_argument("--hermes-image", help="Enables Hermes; use a verified image@sha256:digest after setup")
-    parser.add_argument("--hermes-password-file", default="/var/lib/agent-platform/secrets/hermes-dashboard-password")
-    parser.add_argument("--hermes-session-secret-file", default="/var/lib/agent-platform/secrets/hermes-dashboard-secret")
     args = parser.parse_args()
 
     if not Path("/var/lib/agent-platform/policy/current/manifest.json").is_file():
@@ -118,24 +114,6 @@ def main():
             raise ValueError("Use an OpenCode password of at least 24 characters")
         environment.append({"name": "OPENCODE_SERVER_PASSWORD", "value": password})
         compose["services"].update(yaml.safe_load((args.stack_directory / "compose.opencode.yaml").read_text())["services"])
-    if args.hermes_image:
-        if not (re.fullmatch(r"docker.io/nousresearch/hermes-agent@sha256:[0-9a-f]{64}", args.hermes_image)
-                or re.fullmatch(r"localhost/homelab-hermes:[0-9a-f]{64}", args.hermes_image)):
-            raise ValueError("Use a pinned Hermes digest or the content-tagged image from build-hermes.py")
-        environment.append({"name": "HERMES_IMAGE", "value": args.hermes_image})
-        for name, filename in [
-            ("HERMES_DASHBOARD_PASSWORD", args.hermes_password_file),
-            ("HERMES_DASHBOARD_SECRET", args.hermes_session_secret_file),
-        ]:
-            credential = Path(filename)
-            if credential.stat().st_mode & (stat.S_IRWXG | stat.S_IRWXO):
-                raise ValueError("Hermes dashboard credential files must be private (chmod 600)")
-            secret = credential.read_text().strip()
-            if len(secret) < 24:
-                raise ValueError("Hermes dashboard credentials must contain at least 24 characters")
-            environment.append({"name": name, "value": secret})
-        compose["services"].update(yaml.safe_load((args.stack_directory / "compose.hermes.yaml").read_text())["services"])
-
     api = Portainer(args.url, args.token_file, args.connect_address)
     endpoints = api.request("GET", "/endpoints")
     if args.endpoint is None:

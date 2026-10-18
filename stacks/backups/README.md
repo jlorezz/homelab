@@ -56,9 +56,9 @@ key authenticates and is restricted to the correct bucket and `homelab/` prefix,
 but includes `deleteFiles` and bucket-administration capabilities. It therefore
 provides functional encrypted offsite copies, without verified deletion
 protection. Replace it with a narrowly scoped capability key before relying on
-version retention for recovery from NAS credential compromise. The bucket
-currently keeps all versions; a 90-day previous-version lifecycle is a future
-operator change, not an active expiry policy.
+version retention for recovery from NAS credential compromise. The managed lifecycle expires prior/hidden versions after 90 days and aborts
+unfinished multipart uploads after seven days; current repository objects never
+expire by age. Verify both bucket policies with `b2-lifecycle.py`.
 
 Install credentials in an interactive NAS terminal, with hidden prompts:
 
@@ -118,10 +118,13 @@ These checks demonstrate sampled recovery, not a full disaster recovery test.
 
 ## Retention and recovery
 
-Target snapshot retention is 30 daily, 12 weekly and 12 monthly. Run reviewed
-`restic forget --keep-daily 30 --keep-weekly 12 --keep-monthly 12 --prune` from a
-separate operator environment using the offsite repository password and the
-maintenance credential. No automatic destructive pruning is enabled on the NAS.
+Snapshot retention is 30 daily, 8 weekly and 6 monthly. The native
+`offsite-retention.timer` runs Monday 08:00, after requiring fresh copy,
+integrity and restore receipts and a repository metadata check. Pruning limits
+repacking to 1 GB per run. This maintenance uses the currently installed
+bucket-scoped credential; it does not provide immutable deletion protection.
+B2 lifecycle expiry must affect only prior/hidden versions, never current Restic
+objects. The managed target is 90 days for prior versions.
 Account lifecycle retention of prior object versions is separate from Restic
 snapshot retention and can increase storage cost.
 
@@ -169,3 +172,11 @@ Sources checked 2026-10-17:
 [B2 application capabilities](https://www.backblaze.com/docs/cloud-storage-s3-compatible-app-keys),
 [B2 lifecycle rules](https://www.backblaze.com/docs/en/cloud-storage-lifecycle-rules),
 [Supabase backup coverage](https://supabase.com/docs/guides/platform/backups).
+
+## Failure recovery and deployment verification
+
+Cloud jobs retry failures after 15 minutes. An ExecStopPost hook records queue,
+signal and systemd failures even when the backup program never starts. The NAS
+health check requires all enabled backup timers and production recovery receipts.
+After activation and reboot, verify these timers and their health environment;
+source enable flags alone do not prove that the booted generation contains them.

@@ -88,7 +88,7 @@ class Backup:
         temporary.chmod(0o600)
         temporary.replace(path)
 
-    def execute(self, action):
+    def execute(self, action, *, ignore_failure=None):
         if action == 'plan':
             selected = self.selected()
             return {'snapshots': len(selected), 'logical_bytes': sum(s.get('summary', {}).get('total_bytes_processed', 0) for s in selected)}
@@ -101,7 +101,7 @@ class Backup:
             failure = status.get('failure')
             if failure:
                 name = failure['action'].replace('-', '_')
-                if name in status and failure['at'] > status[name]['at']:
+                if name != ignore_failure and failure['at'] > status.get(name, {}).get('at', ''):
                     raise ValueError('Latest offsite action failed')
             return {'health': 'passed'}
         validate_repository(self.config['destination_repository'])
@@ -113,6 +113,13 @@ class Backup:
         destination_id = json.loads(self.command(False, 'cat', 'config'))['id']
         if source_id == destination_id:
             raise ValueError('Offsite repository must be independent of local recovery')
+        if action == 'retention':
+            self.execute('health', ignore_failure='retention')
+            self.command(False, 'check')
+            self.command(False, 'forget', '--keep-daily', '30', '--keep-weekly', '8',
+                         '--keep-monthly', '6', '--prune', '--max-repack-size', '1G')
+            self.record('retention')
+            return {'retention': 'passed'}
         if action == 'copy':
             selected = self.selected()
             self.command(False, 'copy', '--from-repo', self.config['source_repository'],
@@ -172,7 +179,7 @@ def install_credentials(directory):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=['plan', 'init', 'copy', 'check', 'restore-test', 'health', 'install-credentials'])
+    parser.add_argument('action', choices=['plan', 'init', 'copy', 'check', 'restore-test', 'retention', 'health', 'install-credentials'])
     parser.add_argument('--config', type=Path)
     parser.add_argument('--secrets-directory', type=Path, default=Path('/var/lib/offsite-backup/secrets'))
     args = parser.parse_args()

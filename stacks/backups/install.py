@@ -12,7 +12,7 @@ import tempfile
 HERE = Path(__file__).resolve().parent
 STATE = Path('/var/lib/offsite-backup')
 CONTROL = Path('/etc/systemd/system.control')
-SCHEDULES = {'copy': '*-*-* 05:30:00', 'check': 'Sun *-*-* 07:00:00', 'restore-test': '*-*-01 08:00:00'}
+SCHEDULES = {'copy': '*-*-* 05:30:00', 'check': 'Sun *-*-* 07:00:00', 'restore-test': '*-*-01 08:00:00', 'retention': 'Mon *-*-* 08:00:00'}
 
 
 def units(python, restic):
@@ -24,8 +24,13 @@ Description=Homelab offsite Restic {action}
 Wants=network-online.target
 After=network-online.target restic-backups-nas.service restic-backups-agents.service
 RequiresMountsFor=/storage/backups
+StartLimitIntervalSec=0
+OnFailure=nas-health-check.service
 [Service]
 Type=oneshot
+Restart=on-failure
+RestartSec=15m
+ExecStopPost={python} {HERE}/failure.py {STATE}/state/status.json {action}
 Environment=PATH={Path(restic).parent}:/run/current-system/sw/bin
 EnvironmentFile={STATE}/secrets/homelab.env
 ExecStart={python} /var/lib/agent-platform/bin/workload.py --lock /var/lib/agent-workloads/heavy.lock run --timeout 7200 -- {python} {HERE}/offsite.py {action} --config {STATE}/config.json

@@ -40,7 +40,7 @@ def source_checks(source=HERE):
         link = source.parents[1] / ".agents/skills" / path.name
         assert link.is_symlink() and link.resolve() == path.resolve(), f"Broken local skill link: {path.name}"
     json.loads((source / "policy/handoff.schema.json").read_text())
-    for filename in ("compose.yaml", "compose.opencode.yaml", "compose.hermes.yaml"):
+    for filename in ("compose.yaml", "compose.opencode.yaml"):
         data = yaml.safe_load((source / filename).read_text())
         for service in data["services"].values():
             assert "/var/lib/agent-platform/policy:/opt/agent-policy:ro" in service["volumes"], "Missing read-only policy mount"

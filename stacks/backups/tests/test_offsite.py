@@ -52,6 +52,33 @@ class SelectionTests(unittest.TestCase):
                 backup.execute('health')
 
 
+class FailureTests(unittest.TestCase):
+    def test_guard_failure_invalidates_health_and_success_clears_it(self):
+        spec = importlib.util.spec_from_file_location('failure', Path(__file__).parents[1] / 'failure.py')
+        failure = importlib.util.module_from_spec(spec); spec.loader.exec_module(failure)
+        with tempfile.TemporaryDirectory() as temp:
+            backup = offsite.Backup({'state_directory': temp})
+            for action in ['copy', 'check', 'restore_test']: backup.record(action)
+            path = Path(temp) / 'status.json'
+            original = path.read_bytes()
+            failure.record_failure(path, 'copy', 'success')
+            self.assertEqual(path.read_bytes(), original)
+            failure.record_failure(path, 'copy', 'exit-code')
+            with self.assertRaises(ValueError): backup.execute('health')
+            backup.record('copy')
+            self.assertEqual(backup.execute('health'), {'health': 'passed'})
+            failure.record_failure(path, 'retention', 'timeout')
+            with self.assertRaises(ValueError): backup.execute('health')
+            self.assertEqual(backup.execute('health', ignore_failure='retention'), {'health': 'passed'})
+
+    def test_retention_requires_recovery_proof_before_any_deletion(self):
+        with tempfile.TemporaryDirectory() as temp:
+            backup = offsite.Backup({'state_directory': temp, 'destination_repository': 's3:https://s3.eu-central-003.backblazeb2.com/bucket/homelab'})
+            with patch.object(backup, 'command', return_value='{"id":"fixture"}') as command:
+                with self.assertRaises((FileNotFoundError, ValueError)): backup.execute('retention')
+                self.assertFalse(any(call.args[1] == 'forget' for call in command.call_args_list))
+
+
 RESTIC = os.environ.get('RESTIC_BINARY') or shutil.which('restic')
 
 
@@ -93,3 +120,14 @@ class RealRepositoryTests(unittest.TestCase):
                 remote = json.loads(backup.command(False, 'snapshots', '--json'))
                 self.assertEqual(len(remote), 2)
                 self.assertIn(b'durable knowledge\n', [backup.command(False, 'dump', s['id'], str(note), raw=True) for s in remote])
+
+
+class LifecycleTests(unittest.TestCase):
+    def test_only_prior_versions_expire_and_overlapping_rules_are_rejected(self):
+        spec = importlib.util.spec_from_file_location('lifecycle', Path(__file__).parents[1] / 'b2-lifecycle.py')
+        lifecycle = importlib.util.module_from_spec(spec); spec.loader.exec_module(lifecycle)
+        rule = lifecycle.desired_rules([], 'homelab/')[0]
+        self.assertIsNone(rule['daysFromUploadingToHiding'])
+        self.assertEqual(rule['daysFromHidingToDeleting'], 90)
+        self.assertEqual(lifecycle.desired_rules([rule], 'homelab/'), [rule])
+        with self.assertRaises(ValueError): lifecycle.desired_rules([{'fileNamePrefix': ''}], 'homelab/')

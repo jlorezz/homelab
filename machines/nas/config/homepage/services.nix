@@ -57,9 +57,4 @@
           href: https://${tailscaleHostname}:3773
           description: Coding Workspace
 
-      - Hermes:
-          icon: mdi-robot
-          href: https://${tailscaleHostname}:9119
-          description: Agent Dashboard
-
 ''

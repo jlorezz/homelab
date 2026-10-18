@@ -21,13 +21,6 @@ in
 
   config = lib.mkIf cfg.enable {
     users.groups.agent-platform.gid = 1100;
-    users.groups.hermes-agent.gid = 1101;
-    users.users.hermes-agent = {
-      isSystemUser = true;
-      uid = 1101;
-      group = "hermes-agent";
-      home = "${cfg.stateDirectory}/hermes";
-    };
     users.users.agent-platform = {
       isSystemUser = true;
       uid = 1100;
@@ -46,8 +39,6 @@ in
       ]
       ++ [
         "d ${cfg.stateDirectory} 0711 root root -"
-        "d ${cfg.stateDirectory}/hermes 0700 hermes-agent hermes-agent -"
-        "d ${cfg.stateDirectory}/projects/hermes 0700 hermes-agent hermes-agent -"
         "d ${cfg.stateDirectory}/secrets 0700 root root -"
         "d ${cfg.stateDirectory}/policy 0755 root root -"
         "d ${cfg.stateDirectory}/bin 0755 root root -"
@@ -75,9 +66,9 @@ in
     qnoxslab.tailscaleServe = {
       "3773" = 3773;
       "4096" = 4096;
-      "9119" = 9119;
     };
 
+    # Retained state, including retired worker homes, remains backed up.
     services.restic.backups.agents = {
       initialize = true;
       repository = "/storage/backups/nas-restic";

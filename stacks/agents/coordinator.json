@@ -1,0 +1,106 @@
+{
+  "schema_version": 1,
+  "coordinator_thread_id": "30958bff-b1f6-419c-8434-5315d21930b8",
+  "enabled_after": "2026-10-17T19:40:00Z",
+  "approvers": [
+    "jlorezz"
+  ],
+  "repositories": {
+    "jlorezz/homelab": {
+      "base": "main",
+      "project_owner": "jlorezz",
+      "project_number": 3,
+      "checkout": "/home/jlorezz/projects/homelab",
+      "coordinator_thread_id": "30958bff-b1f6-419c-8434-5315d21930b8",
+      "scheduled_task_id": "scheduled-task:command:mcp:716dbbd1-c7b6-4c3e-83d7-0a62c096f6ab:schedule-task:homelab-ready-queue-luna-v2"
+    },
+    "dealpipe/dealpipe": {
+      "base": "development",
+      "project_owner": "dealpipe",
+      "project_number": 1,
+      "checkout": "/home/jlorezz/projects/dealpipe",
+      "coordinator_thread_id": "mcp:2e619e32-a616-4611-ae28-8f5c7cdf355a",
+      "scheduled_task_id": "scheduled-task:command:mcp:a9dbb03c-d41f-446e-8338-126bd6c4ddda:schedule-task:dealpipe-ready-queue-luna-v2"
+    }
+  },
+  "authorization_mode": "project_ready",
+  "model_routing": {
+    "profiles": {
+      "coordinator": {
+        "providerInstanceId": "codex",
+        "model": "gpt-6-luna",
+        "options": {
+          "reasoningEffort": "low",
+          "serviceTier": "default"
+        }
+      },
+      "research": {
+        "providerInstanceId": "codex",
+        "model": "gpt-6-luna",
+        "options": {
+          "reasoningEffort": "medium",
+          "serviceTier": "default"
+        }
+      },
+      "verification": {
+        "providerInstanceId": "codex",
+        "model": "gpt-6-luna",
+        "options": {
+          "reasoningEffort": "low",
+          "serviceTier": "default"
+        }
+      },
+      "implementation": {
+        "providerInstanceId": "codex",
+        "model": "gpt-6-luna",
+        "options": {
+          "reasoningEffort": "medium",
+          "serviceTier": "default"
+        }
+      },
+      "review": {
+        "providerInstanceId": "codex",
+        "model": "gpt-6-luna",
+        "options": {
+          "reasoningEffort": "high",
+          "serviceTier": "default"
+        }
+      },
+      "escalation": {
+        "providerInstanceId": "codex",
+        "model": "gpt-6.1-sol",
+        "options": {
+          "reasoningEffort": "high",
+          "serviceTier": "default"
+        }
+      }
+    },
+    "sensitive_paths": [
+      "machines/**",
+      "modules/**",
+      "stacks/**",
+      "flake.nix",
+      "flake.lock",
+      ".github/workflows/**",
+      "**/migrations/**",
+      "**/auth/**",
+      "**/billing/**",
+      "**/permissions/**",
+      "**/rls/**",
+      "**/schema/**",
+      "packages/db/**",
+      "supabase/**",
+      "**/auth.*",
+      "**/permissions.*",
+      "**/billing.*",
+      "**/schema.*",
+      "**/access-control/**",
+      "packages/graphql/**"
+    ],
+    "escalation_limit": 1,
+    "missing_model": "stop",
+    "pricing_source": "https://developers.openai.com/api/docs/pricing",
+    "pricing_checked_at": "2026-10-17",
+    "cost_reporting": "Report actual provider usage/cost when available; otherwise unknown. API list prices are not subscription charges."
+  }
+}

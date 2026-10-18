@@ -2,7 +2,7 @@
 
 The central vault is `/storage/obsidian`, with the organized entry point
 `Brain/Start Here.md`. The knowledge service, proposal collector and timers are
-installed separately from NixOS activation. T3/OpenCode, Hermes and Claude Code
+installed separately from NixOS activation. T3/OpenCode and Claude Code
 use the same read-only `shared-brain` service; desktop clients connect over SSH.
 Agents receive a proposal directory and the search socket, never a vault mount.
 Repository documentation remains in Git. See [knowledge/README.md](knowledge/README.md)
@@ -11,6 +11,14 @@ for source ownership, deployment, approval, credentials and recovery. The
 rollout notes below describe the pre-knowledge baseline.
 
 # NAS development agents
+
+## T3 coordinator
+
+T3 owns issue delivery, worktree workers, independent review and PR handback.
+See [COORDINATOR.md](COORDINATOR.md) for GitHub commands, conversation bindings,
+recovery and operator verification. Hermes was retired on 2026-10-17; its private
+state and backups are retained, but it is no longer provisioned or deployed.
+
 
 ## Desktop Surplus provider
 
@@ -57,7 +65,7 @@ The desired state lives here:
 | Source | Owns |
 | --- | --- |
 | `policy/AGENTS.md` | Shared task, credential, verification and delivery policy |
-| `policy/skills/` | Three locally authored skills; no upstream executable code |
+| `policy/skills/` | Locally authored skills; no upstream executable code |
 | `policy/provenance.json` | Audited upstream revisions and adopted ideas |
 | `access.json` | Complete opt-in list of enabled OpenCode MCP servers |
 | `configure.py` | Idempotent home migration and content-addressed policy releases |
@@ -68,10 +76,10 @@ The desired state lives here:
 | `../github-runner/job-hook.py` | CI job-level workload lease |
 | `../../.github/workflows/agent-platform.yml` | Pinned-action source tests and runtime builds |
 
-T3 remains the interactive workbench; Hermes does research, CI triage and task
-handoffs. Automatic panels, council scoring, autonomous repair loops and a second
-dispatcher are not installed. The optional reviewer runs only on an explicit
-`review.py run` invocation and never becomes a required merge check.
+T3 is the workbench and coordinator. Explicit delivery requests include an
+isolated implementation worker and independent advisory review. No council
+score replaces repository checks; merge and deployment remain separate. The
+optional credential-free reviewer is available through `review.py run`.
 
 ### Provision and activate
 
@@ -87,7 +95,7 @@ Never copy credentials or agent state into that source tree.
    nix build path:.#agent-runtimes
    ```
 
-2. Stop the T3/Hermes/optional OpenCode stack through Portainer during a maintenance
+2. Stop the T3/optional OpenCode stack through Portainer during a maintenance
    window. This prevents agents modifying home configuration while it is migrated.
    Do not interrupt a CI job. Set `access.json` to the reviewed MCP opt-in list;
    the default is empty. Read-only account scopes and separate non-production
@@ -121,14 +129,12 @@ Never copy credentials or agent state into that source tree.
    sudo nix run path:.#deploy-agents -- \
      --token-file /var/lib/agent-platform/secrets/portainer-token \
      --connect-address 100.125.180.36 --endpoint 2 \
-     --image-archive /var/tmp/homelab-agent-image \
-     --hermes-image localhost/homelab-hermes:5541807ccdc6899a717a3d6c78513ab9aa40c57c0556a8ecc23d8b9fbb4da759
+     --image-archive /var/tmp/homelab-agent-image
    ```
 
    Preserve the optional OpenCode service by also passing the documented
-   `--with-opencode` and password-file arguments if it is enabled. Hermes uses
-   its existing pinned image plus the newly mounted policy/helpers; no provider
-   login or launcher patch is changed by this rollout.
+   `--with-opencode` and password-file arguments if it is enabled. Retired
+   Hermes is never included in new stack deployments.
 
 5. In an idle CI maintenance window, rebuild/redeploy the runner from this source:
 
@@ -153,8 +159,7 @@ Never copy credentials or agent state into that source tree.
    agent-workload run --timeout 30 -- node -e 'console.log("WORKLOAD_OK")'
    ```
 
-   Verify Hermes can see the three external skills and still receives an
-   allowlisted message. Run one harmless model/tool turn in T3. For the next CI
+   Run one harmless model/tool turn in T3. For the next CI
    job, check “Set up runner” for `Shared heavy-workload slot acquired`. Confirm
    an agent command queues while that CI lease is held. Source checks do not
    prove container/model/browser connectivity.
@@ -260,36 +265,18 @@ complete. Do not remove/recreate the lock inode while jobs hold it. To remove CI
 hooks, redeploy the previous runner image in an idle maintenance window. Do not
 delete runner registration, application services or database volumes.
 
-## Current deployment (2026-10-15)
+## Agent deployment and onboarding
 
-Portainer environment 2 owns the `homelab-agents` stack (ID 1). T3 nightly 0.0.46-nightly.20261015.3145 with
-OpenCode 1.19.0 and Hermes 0.22.2 are deployed, with healthy container checks.
-T3's homelab project and OpenCode provider are enabled; the unused Codex/Claude
-providers are disabled. Browser pairing, dashboard authentication, isolated
-mounts, and cgroup placement were verified. Hermes is configured for Surplus
-Intelligence / DeepSeek v4.1 Flash; a bounded live authentication/model/tool-call
-check passed. The OpenCode provider discovers the same model; an OpenCode coding
-turn has not been tested.
+Portainer environment 2 owns the `homelab-agents` stack (ID 1). T3 remains on its
+existing pinned image; Hermes has been removed from the stack. The desktop T3
+coordinators and scheduler are separate from the NAS T3 server: their host must
+stay running for queue processing. See COORDINATOR.md for actual bindings.
 
-For user-managed onboarding:
-
-1. In Portainer, open `homelab-agents-t3-1` → Console with user **1100:1100**.
-   Run `opencode auth login` and authenticate the desired hosted provider.
-   Run `t3 pair` to obtain a fresh one-time token, then enter it at
-   <https://nas.tailb80645.ts.net:3773>. Refresh provider status under Settings →
-   Providers and select the desired model. Keep the flake-pinned OpenCode version;
-   update the image through Nix rather than the provider's in-place update button.
-2. Hermes dashboard: <https://nas.tailb80645.ts.net:9119>, username `agent`.
-   On the NAS, retrieve its password with
-   `sudo cat /var/lib/agent-platform/secrets/hermes-dashboard-password`.
-   Configure the provider under Models/Keys, or run `hermes setup` from the Hermes
-   container's Portainer console as user `hermes`. Restart the Hermes container
-   through Portainer after changing CLI configuration.
-3. To push branches or create PRs, run `gh auth login` in the T3 console as the
-   same user. Credentials stay in that container's persistent home.
-
-The Portainer API token is stored privately on the NAS at
-`/var/lib/agent-platform/secrets/portainer-token`; it is not mounted into agents.
+In the T3 Portainer console as user **1100:1100**, authenticate with
+`opencode auth login`, discover models, then run `t3 pair` and pair the NAS at
+<https://nas.tailb80645.ts.net:3773>. Authenticate GitHub independently with
+`gh auth login` when that environment needs repository access. Existing private
+provider and Portainer credentials stay in their owning homes.
 
 ## OpenCode account configuration
 
@@ -335,7 +322,6 @@ existing application PostgreSQL instance with a Supabase stack.
 - T3 with OpenCode installed: `compose.yaml`, 3 CPU threads / 10 GiB maximum.
 - Optional independent OpenCode web workspace: add `compose.opencode.yaml`,
   2 CPU threads / 6 GiB maximum, authenticated with a unique server password.
-- Optional Hermes: add `compose.hermes.yaml`, 2 CPU threads / 6 GiB maximum.
 - The **aggregate** `agent-workloads.slice` ceiling is 4 CPU threads and 16 GiB
   RAM, with a 12 GiB pressure threshold and no swap. Individual maxima cannot
   all be reached at once. Start with T3 and one heavy build/test at a time.
@@ -363,7 +349,7 @@ nix build /etc/nixos/homelab#agent-image --out-link /var/tmp/homelab-agent-image
 ```
 
 The workspace helper only clones missing checkouts, creates separate agent
-branches, seeds Hermes configuration, and creates a private OpenCode server password file. It never resets
+branches, creates a private OpenCode server password file. It never resets
 existing work. It accepts a Git bundle path as an optional argument when cloning
 the latest committed local source without GitHub credentials. Uncommitted laptop
 edits are not transferred. Configure a Git identity and repository authentication
@@ -437,99 +423,15 @@ For optional OpenCode web, use <https://nas.tailb80645.ts.net:4096>, username
 `opencode`, and the generated server password. Run provider login separately in
 that container. Home directories persist login and session data across upgrades.
 
-## Hermes dashboard restart fix (0.22.2)
+## Retired Hermes
 
-The pinned upstream image launches detached dashboard actions with the bare PM
-Python interpreter, while its dependencies live in the bundled `.venv`. This
-makes Restart Gateway fail with "no dependency environment is committed" even
-though the gateway itself runs. `hermes/Dockerfile` applies a guarded patch to
-`runtime_command` for Docker installs only; explicit interpreter overrides and
-non-Docker installs retain their original behavior. The image build verifies the
-same detached launcher path with `--version`.
-
-Build the fix through Portainer on the NAS:
-
-```sh
-sudo nix shell --impure --expr 'let p=(builtins.getFlake "/etc/nixos/homelab").inputs.nixpkgs.legacyPackages.x86_64-linux; in p.python3.withPackages(q:[q.pyyaml])' \
-  -c python3 /etc/nixos/homelab/stacks/agents/build-hermes.py \
-  --token-file /var/lib/agent-platform/secrets/portainer-token \
-  --connect-address "$(tailscale ip -4)"
-```
-
-Use the printed `localhost/homelab-hermes:<64-character-context-hash>` as
-`HERMES_IMAGE` in the existing Portainer stack or as `deploy-agents --hermes-image`.
-The currently deployed tag is
-`localhost/homelab-hermes:5541807ccdc6899a717a3d6c78513ab9aa40c57c0556a8ecc23d8b9fbb4da759`.
-The upstream base remains pinned by digest. Revisit/remove this patch when
-updating the upstream image; its exact-source guard intentionally fails if the
-launcher has changed.
-
-Verified through the authenticated dashboard: Restart Gateway exits 0, the
-supervised gateway returns to running, and Discord reconnects. Discord reports
-connected and an incoming user message completed a model turn and response
-send. Existing Discord credentials and the user's allowlist remain private in
-Hermes state. Historical failed-action lines remain in the action log; use its
-latest entry to assess a new restart. Text messaging is working; voice playback
-is not enabled because the image lacks the Opus codec.
-
-## Hermes Surplus configuration
-
-The Hermes default is `custom:surplus-intelligence` with model
-`deepseek-v4.1-flash`, endpoint `https://api.surplusintelligence.ai/v1`, explicit
-`chat_completions` transport, and medium reasoning effort. The secret-free seed
-is `hermes-config.yaml`; the live configuration preserves existing dashboard,
-telemetry, terminal, and agent settings. Context/vision metadata follows the
-user-supplied provider configuration; the advertised context ceiling was not
-load-tested.
-
-`SURPLUS_API_KEY` lives only in Hermes's private persistent `.env`:
-`/var/lib/agent-platform/hermes/.env` on the NAS, `/opt/data/.env` inside Hermes.
-The existing OpenCode Surplus API credential was copied there once on 2026-10-15,
-without printing it. This does not mount the OpenCode home into Hermes or keep
-the two credential stores synchronized. When rotating the key, update both
-OpenCode authentication and Hermes's `SURPLUS_API_KEY` through its Keys page or
-private `.env`, then restart Hermes through Portainer. Never put keys in Compose,
-Git, or a Nix expression.
-
-The Hermes runtime resolver, authenticated live model access, and a forced
-function call passed verification. The test did not edit a repository or run
-scheduled jobs. Other remote MCP accounts still require their own authorization;
-connecting the inference provider does not connect Hermes to T3's MCP server.
-
-## Add Hermes after provider setup
-
-The Docker Hub stable image was inspected on 2026-10-15. Its Linux amd64 manifest
-was:
-
-```text
-docker.io/nousresearch/hermes-agent@sha256:a11574b7fe8e1631d7d88d556677dac693bc058abf558cdeb899155688c1bf05
-```
-
-Use Portainer to pull that digest and create an initial setup container with:
-
-- Volume `/var/lib/agent-platform/hermes:/opt/data`.
-- Volume `/var/lib/agent-platform/projects/hermes:/workspace`.
-- Command `setup`, with interactive stdin/TTY enabled and no published ports.
-- Environment `HERMES_UID=1101` and `HERMES_GID=1101` to match the dedicated host user.
-- The same `agent-workloads.slice` parent and 2 CPU / 6 GiB limits.
-
-The workspace helper seeds `config.yaml` from `hermes-config.yaml` before setup. In the container
-console, configure the hosted provider with its supported endpoint, credentials,
-and exact model ID. OpenCode provider logins are not automatically Hermes
-credentials. After successful setup, remove the setup container **without
-removing its host data**, and deploy the gateway using the helper's
-`--hermes-image docker.io/nousresearch/hermes-agent@sha256:...` option (plus any
-OpenCode options you already enabled).
-
-Hermes dashboard: <https://nas.tailb80645.ts.net:9119>. The helper configures
-username/password authentication and a stable session signing secret from private
-files generated in `/var/lib/agent-platform/secrets/`. The deployment helper reads
-`hermes-dashboard-password` and `hermes-dashboard-secret` there; override their paths
-with `--hermes-password-file` / `--hermes-session-secret-file` if needed.
-No public gateway API port is published. Its terminal backend is
-`local` inside the Hermes container; it cannot create sibling host containers.
-Only one gateway process may use this Hermes state directory. Additional agents
-need their own profiles/state and separate checkouts.
+`retire-hermes.py` removes only the Hermes service and its labelled container
+through Portainer. It defaults to a read-only plan; `--apply` saves private Compose
+and environment snapshots, updates the stack without global pruning, and removes
+only Hermes containers without deleting volumes. Homes, secrets, workspaces and
+backups are retained under `/var/lib/agent-platform` for recovery. The retired
+9119 tailnet route, Homepage entry and Beszel probe are removed from desired Nix
+configuration; activate those changes separately from unrelated NAS work.
 
 ## Verify before assigning work
 
@@ -552,7 +454,7 @@ workers. Infrastructure deployment still runs from the administrator's checkout.
 ## Persistence, backups, and recovery
 
 All state is under `/var/lib/agent-platform` on the NAS SSD. A separate nightly
-Restic job stages homes, credentials, sessions, Git workspaces, and Hermes memory
+Restic job stages homes, credentials, sessions, Git workspaces, and retained retired-agent state
 into `/var/lib/agent-backup-staging`; dependency/build caches are excluded. SQLite
 databases are replaced with online-consistent backups, including committed WAL
 data. This provides per-database consistency, not an atomic snapshot of every
@@ -564,7 +466,7 @@ commits regularly.
 
 For recovery, stop the stack in Portainer, restore the agent staging snapshot to
 a temporary directory, copy its contents back to `/var/lib/agent-platform`,
-preserve UID 1100 for T3/OpenCode and UID 1101 for Hermes, then redeploy
+preserve UID 1100 for T3/OpenCode and ownership of archived state, then redeploy
 the pinned images and verify provider login and workspaces. Do not run two copies
 of an agent against the same SQLite state directory.
 
@@ -572,8 +474,6 @@ of an agent against the same SQLite state directory.
 
 - [T3 remote access](https://github.com/pingdotgg/t3code/blob/main/docs/user/remote-access.md)
 - [OpenCode server/authentication](https://opencode.ai/docs/server/)
-- [Hermes container deployment](https://hermes-agent.nousresearch.com/docs/user-guide/docker)
-- [Hermes configuration](https://hermes-agent.nousresearch.com/docs/user-guide/configuration)
 
 
 ### CI concurrency

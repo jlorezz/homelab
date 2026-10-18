@@ -35,7 +35,7 @@ def install(python):
             path.mkdir(parents=True, exist_ok=True)
             os.chown(path, 1100, 1100)
             os.chown(path.parent, 1100, 1100)
-    for worker, uid in [('t3', 1100), ('opencode', 1100), ('hermes', 1101)]:
+    for worker, uid in [('t3', 1100), ('opencode', 1100)]:
         path = STATE / 'proposals' / worker
         path.mkdir(exist_ok=True)
         os.chown(path, uid, uid)

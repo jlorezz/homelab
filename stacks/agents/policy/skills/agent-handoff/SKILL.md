@@ -1,6 +1,6 @@
 ---
 name: agent-handoff
-description: Prepare a reproducible task handoff between Hermes and T3 or another development machine.
+description: Prepare a reproducible task handoff between T3 workers or development machines.
 ---
 
 Read the target repository's instructions. Produce a handoff with repository URL,

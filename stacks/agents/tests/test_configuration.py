@@ -30,19 +30,22 @@ class ConfigurationTests(unittest.TestCase):
         self.assertTrue(configure.provision(self.state, apply=True))
         self.assertEqual([], configure.provision(self.state))
         self.assertEqual([], configure.provision(self.state, apply=True))
+        self.assertFalse((self.state / "hermes").exists())
 
-    def test_credentials_provider_and_persona_are_preserved(self):
+    def test_retired_worker_state_and_active_provider_are_preserved(self):
         home = self.state / "hermes"
         home.mkdir()
         (home / ".env").write_text("PRIVATE_KEY=do-not-copy\n")
         (home / "SOUL.md").write_text("My existing identity\n")
         (home / "config.yaml").write_text(yaml.safe_dump({"model": {"default": "my-model"}, "discord": {"allowed_users": ["123"]}}))
+        retired = {p.name: p.read_bytes() for p in home.iterdir()}
         code = self.state / "t3/.config/opencode/opencode.jsonc"
         code.parent.mkdir(parents=True)
         code.write_text('{//keep values\n"model":"my-provider/model","provider":{"mine":{"options":{"apiKey":"private-value"}}}}')
         configure.provision(self.state, apply=True)
+        self.assertEqual(retired, {p.name: p.read_bytes() for p in home.iterdir()})
         self.assertEqual("PRIVATE_KEY=do-not-copy\n", (home / ".env").read_text())
-        self.assertIn("My existing identity", (home / "SOUL.md").read_text())
+        self.assertEqual("My existing identity\n", (home / "SOUL.md").read_text())
         self.assertEqual("my-model", yaml.safe_load((home / "config.yaml").read_text())["model"]["default"])
         self.assertEqual(["123"], yaml.safe_load((home / "config.yaml").read_text())["discord"]["allowed_users"])
         self.assertEqual("private-value", json.loads(code.read_text())["provider"]["mine"]["options"]["apiKey"])
@@ -101,21 +104,20 @@ if __name__ == "__main__":
     unittest.main()
 
 class KnowledgeConfigurationTests(unittest.TestCase):
-    def test_hermes_and_claude_follow_opt_in_without_losing_other_accounts(self):
-        current = {'mcp_servers': {'existing': {'command': 'keep-me'}}, 'model': {'default': 'mine'}}
-        enabled = configure.managed_hermes(current, ['shared-brain'])
-        self.assertIn('existing', enabled['mcp_servers'])
-        self.assertIn('shared-brain', enabled['mcp_servers'])
-        self.assertIn('mcp-shared-brain', enabled['platform_toolsets']['discord'])
-        disabled = configure.managed_hermes(enabled, [])
-        self.assertNotIn('shared-brain', disabled['mcp_servers'])
-        self.assertIn('existing', disabled['mcp_servers'])
+    def test_claude_follows_opt_in_without_losing_other_accounts(self):
         with tempfile.TemporaryDirectory() as tmp:
             state = Path(tmp)
             try:
+                claude = state / 't3/.claude.json'
+                claude.parent.mkdir(parents=True)
+                claude.write_text(json.dumps({'mcpServers': {'existing': {'command': 'keep-me'}}}))
                 configure.provision(state, apply=True, enabled=['shared-brain'])
                 self.assertIn('shared-brain', json.loads((state / 't3/.claude.json').read_text())['mcpServers'])
                 self.assertIn('/opt/agent-policy/current/AGENTS.md', (state / 't3/.claude/CLAUDE.md').read_text())
+                configure.provision(state, apply=True, enabled=[])
+                servers = json.loads(claude.read_text())['mcpServers']
+                self.assertNotIn('shared-brain', servers)
+                self.assertEqual({'command': 'keep-me'}, servers['existing'])
             finally:
                 for path in state.rglob('*'):
                     if path.is_dir() and not path.is_symlink(): path.chmod(0o755)

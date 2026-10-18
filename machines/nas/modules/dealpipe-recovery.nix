@@ -34,7 +34,7 @@ in {
           ++ lib.optional (lib.hasSuffix ".timer" name) "timers.target";
       };
     }) names);
-    system.activationScripts.dealpipeRecoveryAdopt = lib.stringAfter [ "etc" ] ''
+    system.activationScripts.dealpipeRecoveryAdopt = lib.mkIf cfg.enableProduction (lib.stringAfter [ "etc" ] ''
       if [ -f /etc/systemd/system.control/.dealpipe-recovery-managed ]; then
         ${lib.concatMapStringsSep "\n" (name: ''
           rm -f /etc/systemd/system.control/${name}
@@ -45,7 +45,7 @@ in {
         rm -f /etc/systemd/system.control/.dealpipe-recovery-managed
         rm -f /nix/var/nix/gcroots/dealpipe-recovery-python
       fi
-    '';
+    '');
     environment.systemPackages = [ operator provision operations ];
     systemd.tmpfiles.rules = [
       "d /var/lib/dealpipe-recovery 0700 root root -"
@@ -58,7 +58,6 @@ in {
     ];
     systemd.services.nas-health-check.environment = lib.mkIf cfg.enableProduction {
       DEALPIPE_RECOVERY_STATUS = "/var/lib/dealpipe-recovery/status.json";
-      BACKUP_REQUIRED_TIMERS = lib.mkAfter " dealpipe-production-backup.timer dealpipe-production-check.timer dealpipe-production-restore-verify.timer dealpipe-production-refresh.timer dealpipe-production-retention.timer";
     };
   };
 }

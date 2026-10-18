@@ -34,8 +34,8 @@ a recovery dependency: the independent Restic repository has its own password.
 
 Restic encrypts the database, bucket configuration, checksummed file bytes and
 optional `operator-recovery/` material into the private EU production B2 bucket.
-The Homelab credential/bucket/password is never reused. The current bucket keeps
-all versions and has Object Lock disabled. Verified immutable deletion protection
+The Homelab credential/bucket/password is never reused. The bucket expires hidden/prior versions after 90 days, keeps current
+objects indefinitely, and has Object Lock disabled. Verified immutable deletion protection
 is not claimed. Weekly native retention maintenance runs Monday 09:00 and retains
 30 daily, 8 weekly and 6 monthly snapshots, requiring fresh recovery receipts
 and a repository metadata check before deletion. Repacking is capped at 1 GB.

@@ -70,7 +70,9 @@ in {
     # The existing NAS health probe exposes failures through Beszel's systemd view.
     systemd.services.nas-health-check.environment = {
       OFFSITE_BACKUP_STATUS = "/var/lib/offsite-backup/state/status.json";
-      BACKUP_REQUIRED_TIMERS = lib.mkAfter " restic-backups-nas.timer restic-backups-agents.timer offsite-copy.timer offsite-check.timer offsite-restore-test.timer offsite-retention.timer";
+      BACKUP_REQUIRED_TIMERS = "restic-backups-nas.timer restic-backups-agents.timer offsite-copy.timer offsite-check.timer offsite-restore-test.timer offsite-retention.timer"
+        + lib.optionalString (config.qnoxslab.dealpipeRecovery.enableProduction or false)
+          " dealpipe-production-backup.timer dealpipe-production-check.timer dealpipe-production-restore-verify.timer dealpipe-production-refresh.timer dealpipe-production-retention.timer";
     };
   };
 }

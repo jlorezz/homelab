@@ -56,9 +56,9 @@ key authenticates and is restricted to the correct bucket and `homelab/` prefix,
 but includes `deleteFiles` and bucket-administration capabilities. It therefore
 provides functional encrypted offsite copies, without verified deletion
 protection. Replace it with a narrowly scoped capability key before relying on
-version retention for recovery from NAS credential compromise. The bucket
-currently keeps all versions; a 90-day previous-version lifecycle is a future
-operator change, not an active expiry policy.
+version retention for recovery from NAS credential compromise. The managed lifecycle expires prior/hidden versions after 90 days and aborts
+unfinished multipart uploads after seven days; current repository objects never
+expire by age. Verify both bucket policies with `b2-lifecycle.py`.
 
 Install credentials in an interactive NAS terminal, with hidden prompts:
 

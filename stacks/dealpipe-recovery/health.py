@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 
 
-def check(path):
+def check(path, *, ignore_failure=None):
     state=json.loads(Path(path).read_text())
     for action,hours in [('backup',36),('check',8*24),('restore_verify',35*24),('sanitize_refresh',8*24)]:
         age=(datetime.now(timezone.utc)-datetime.fromisoformat(state[action]['at'])).total_seconds()
@@ -14,7 +14,7 @@ def check(path):
     if state['testing_smoke']['sanitized_at']!=state['sanitize_refresh']['at']:raise ValueError('Latest dataset has no matching smoke receipt')
     if state['testing_realtime']['sanitized_at']!=state['sanitize_refresh']['at']:raise ValueError('Latest dataset has no matching Realtime receipt')
     failure=state.get('failure',{});action=failure.get('action','').replace('-','_')
-    if action in state and failure['at']>state[action]['at']:raise ValueError('Latest production recovery action failed')
+    if action != ignore_failure and failure.get('at','')>state.get(action,{}).get('at',''):raise ValueError('Latest production recovery action failed')
     return {'production_recovery':'healthy'}
 
 

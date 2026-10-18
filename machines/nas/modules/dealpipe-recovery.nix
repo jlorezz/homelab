@@ -16,8 +16,8 @@ let
   names = builtins.filter (name: cfg.enableProduction || lib.hasPrefix "dealpipe-testing-" name) allNames;
   path = lib.makeBinPath [ pkgs.postgresql_18 pkgs.restic pkgs.docker pkgs.util-linux pkgs.coreutils ];
   render = name: builtins.replaceStrings
-    [ "@python@" "@source@" "Environment=PATH=/run/current-system/sw/bin" "[Service]" ]
-    [ "${python}/bin/python3" "${source}" "Environment=PATH=${path}" "[Service]\nEnvironment=AGENT_OPERATOR_LIBRARY=${../../../stacks/agents}" ]
+    [ "@python@" "@source@" "@failure@" "Environment=PATH=/run/current-system/sw/bin" "[Service]" ]
+    [ "${python}/bin/python3" "${source}" "${../../../stacks/backups/failure.py}" "Environment=PATH=${path}" "[Service]\nEnvironment=AGENT_OPERATOR_LIBRARY=${../../../stacks/agents}" ]
     (builtins.readFile (source + "/units/${name}"));
 in {
   options.qnoxslab.dealpipeRecovery = {
@@ -58,6 +58,7 @@ in {
     ];
     systemd.services.nas-health-check.environment = lib.mkIf cfg.enableProduction {
       DEALPIPE_RECOVERY_STATUS = "/var/lib/dealpipe-recovery/status.json";
+      BACKUP_REQUIRED_TIMERS = lib.mkAfter " dealpipe-production-backup.timer dealpipe-production-check.timer dealpipe-production-restore-verify.timer dealpipe-production-refresh.timer dealpipe-production-retention.timer";
     };
   };
 }

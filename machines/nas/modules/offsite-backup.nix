@@ -14,11 +14,15 @@ let
     description = "Homelab offsite Restic ${action}";
     after = [ "network-online.target" "restic-backups-nas.service" "restic-backups-agents.service" ];
     wants = [ "network-online.target" ];
-    unitConfig.RequiresMountsFor = [ "/storage/backups" ];
+    unitConfig = { RequiresMountsFor = [ "/storage/backups" ]; StartLimitIntervalSec = 0; };
+    onFailure = [ "nas-health-check.service" ];
     serviceConfig = {
       Type = "oneshot";
       ExecStart = guarded action;
       EnvironmentFile = cfg.credentialsFile;
+      ExecStopPost = "${pkgs.python3}/bin/python3 ${source}/failure.py /var/lib/offsite-backup/state/status.json ${action}";
+      Restart = "on-failure";
+      RestartSec = "15m";
       StateDirectory = "offsite-backup";
       StateDirectoryMode = "0700";
       UMask = "0077";
@@ -43,7 +47,7 @@ in {
   config = lib.mkIf cfg.enable {
     system.activationScripts.offsiteBackupAdopt = lib.stringAfter [ "etc" ] ''
       if [ -f /etc/systemd/system.control/.offsite-backup-managed ]; then
-        for action in copy check restore-test; do
+        for action in copy check restore-test retention; do
           rm -f /etc/systemd/system.control/offsite-$action.service
           rm -f /etc/systemd/system.control/offsite-$action.timer
           rm -f /etc/systemd/system.control/timers.target.wants/offsite-$action.timer
@@ -58,10 +62,15 @@ in {
     systemd.services.offsite-copy = service "copy";
     systemd.services.offsite-check = service "check";
     systemd.services.offsite-restore-test = service "restore-test";
+    systemd.services.offsite-retention = service "retention";
+    systemd.timers.offsite-retention = { wantedBy = [ "timers.target" ]; timerConfig = { OnCalendar = "Mon *-*-* 08:00:00"; Persistent = true; }; };
     systemd.timers.offsite-copy = { wantedBy = [ "timers.target" ]; timerConfig = { OnCalendar = "*-*-* 05:30:00"; Persistent = true; RandomizedDelaySec = "15m"; }; };
     systemd.timers.offsite-check = { wantedBy = [ "timers.target" ]; timerConfig = { OnCalendar = "Sun *-*-* 07:00:00"; Persistent = true; }; };
     systemd.timers.offsite-restore-test = { wantedBy = [ "timers.target" ]; timerConfig = { OnCalendar = "*-*-01 08:00:00"; Persistent = true; }; };
     # The existing NAS health probe exposes failures through Beszel's systemd view.
-    systemd.services.nas-health-check.environment.OFFSITE_BACKUP_STATUS = "/var/lib/offsite-backup/state/status.json";
+    systemd.services.nas-health-check.environment = {
+      OFFSITE_BACKUP_STATUS = "/var/lib/offsite-backup/state/status.json";
+      BACKUP_REQUIRED_TIMERS = lib.mkAfter " restic-backups-nas.timer restic-backups-agents.timer offsite-copy.timer offsite-check.timer offsite-restore-test.timer offsite-retention.timer";
+    };
   };
 }

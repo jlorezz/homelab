@@ -118,10 +118,13 @@ These checks demonstrate sampled recovery, not a full disaster recovery test.
 
 ## Retention and recovery
 
-Target snapshot retention is 30 daily, 12 weekly and 12 monthly. Run reviewed
-`restic forget --keep-daily 30 --keep-weekly 12 --keep-monthly 12 --prune` from a
-separate operator environment using the offsite repository password and the
-maintenance credential. No automatic destructive pruning is enabled on the NAS.
+Snapshot retention is 30 daily, 8 weekly and 6 monthly. The native
+`offsite-retention.timer` runs Monday 08:00, after requiring fresh copy,
+integrity and restore receipts and a repository metadata check. Pruning limits
+repacking to 1 GB per run. This maintenance uses the currently installed
+bucket-scoped credential; it does not provide immutable deletion protection.
+B2 lifecycle expiry must affect only prior/hidden versions, never current Restic
+objects. The managed target is 90 days for prior versions.
 Account lifecycle retention of prior object versions is separate from Restic
 snapshot retention and can increase storage cost.
 
@@ -169,3 +172,11 @@ Sources checked 2026-10-17:
 [B2 application capabilities](https://www.backblaze.com/docs/cloud-storage-s3-compatible-app-keys),
 [B2 lifecycle rules](https://www.backblaze.com/docs/en/cloud-storage-lifecycle-rules),
 [Supabase backup coverage](https://supabase.com/docs/guides/platform/backups).
+
+## Failure recovery and deployment verification
+
+Cloud jobs retry failures after 15 minutes. An ExecStopPost hook records queue,
+signal and systemd failures even when the backup program never starts. The NAS
+health check requires all enabled backup timers and production recovery receipts.
+After activation and reboot, verify these timers and their health environment;
+source enable flags alone do not prove that the booted generation contains them.

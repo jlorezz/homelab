@@ -5,6 +5,7 @@ import hashlib
 import json
 from pathlib import Path
 import sys
+import subprocess
 import tarfile
 import tempfile
 import time
@@ -41,23 +42,27 @@ def main():
     args = parser.parse_args()
     directory = Path(__file__).resolve().parent
     api = Portainer(args.url, args.token_file, args.connect_address)
-    endpoints = api.request("GET", "/endpoints")
-    matches = [e for e in endpoints if e["Name"] == "Dealpipe CI"]
-    if len(matches) > 1:
-        raise RuntimeError("Multiple CI environments; resolve in Portainer")
-    if not matches:
-        body, content_type = multipart({"Name": "Dealpipe CI", "EndpointCreationType": 2,
-                                       "URL": "tcp://portainer-ci-agent:9001", "ContainerEngine": "docker",
-                                       "TLS": "true", "TLSSkipVerify": "true", "TLSSkipClientVerify": "true"})
-        endpoint = api.request("POST", "/endpoints", raw_body=body, content_type=content_type)
-    else:
-        endpoint = matches[0]
-    if endpoint["URL"] != "tcp://portainer-ci-agent:9001" or endpoint["Type"] != 2:
-        raise RuntimeError("Refusing CI stack deployment without the dedicated agent environment")
-    endpoint_id = endpoint["Id"]
-    info = api.request("GET", f"/endpoints/{endpoint_id}/docker/info")
-    if "name=rootless" not in info.get("SecurityOptions", []):
-        raise RuntimeError("Refusing runner deployment: selected engine is not rootless")
+    def endpoint_for(name, agent):
+        endpoints = api.request("GET", "/endpoints")
+        matches = [e for e in endpoints if e["Name"] == name]
+        if len(matches) > 1:
+            raise RuntimeError("Multiple CI environments; resolve in Portainer")
+        url = f"tcp://{agent}:9001"
+        if not matches:
+            body, content_type = multipart({"Name": name, "EndpointCreationType": 2,
+                                           "URL": url, "ContainerEngine": "docker",
+                                           "TLS": "true", "TLSSkipVerify": "true", "TLSSkipClientVerify": "true"})
+            endpoint = api.request("POST", "/endpoints", raw_body=body, content_type=content_type)
+        else:
+            endpoint = matches[0]
+        if endpoint["URL"] != url or endpoint["Type"] != 2:
+            raise RuntimeError("Refusing deployment without the dedicated CI agent")
+        info = api.request("GET", f"/endpoints/{endpoint['Id']}/docker/info")
+        if "name=rootless" not in info.get("SecurityOptions", []):
+            raise RuntimeError("Refusing runner deployment: selected engine is not rootless")
+        return endpoint["Id"], info["ID"]
+
+    endpoint_id, core_engine_id = endpoint_for("Dealpipe CI", "portainer-ci-agent")
     lock_file = Path("/var/lib/agent-workloads/heavy.lock")
     if not lock_file.is_file() or lock_file.is_symlink():
         raise RuntimeError("Provision the host shared workload lock before deploying CI hooks")
@@ -86,29 +91,41 @@ def main():
     print(f"CI environment {endpoint_id}; image {image}", flush=True)
     if args.prepare_only:
         return
+    browser_id, browser_engine_id = endpoint_for("Dealpipe Browser CI", "portainer-ci-browser-agent")
+    if browser_engine_id == core_engine_id:
+        raise RuntimeError("Browser and core CI must use separate Docker engines")
     require_idle(api, endpoint_id)
-    compose = (directory / "compose.yaml").read_text()
-    # Validate before transmitting; the original YAML remains reviewable in Portainer.
-    yaml.safe_load(compose)
-    environment = [{"name": "RUNNER_IMAGE", "value": image}]
-    require_idle(api, endpoint_id)
-    stacks = api.request("GET", "/stacks")
-    matches = [s for s in stacks if s["EndpointId"] == endpoint_id and s["Name"] == "dealpipe-ci"]
-    if len(matches) > 1:
-        raise RuntimeError("Multiple CI stacks; resolve in Portainer")
-    if matches:
-        stack = api.request("PUT", f"/stacks/{matches[0]['Id']}?endpointId={endpoint_id}",
-                            {"StackFileContent": compose, "Env": environment, "Prune": False, "PullImage": False})
-    else:
-        stack = api.request("POST", f"/stacks/create/standalone/string?endpointId={endpoint_id}",
-                            {"Name": "dealpipe-ci", "StackFileContent": compose, "Env": environment})
-    deadline = time.monotonic() + 180
-    while stack["Status"] == 3 and time.monotonic() < deadline:
-        time.sleep(5)
-        stack = api.request("GET", f"/stacks/{stack['Id']}")
-    if stack["Status"] != 1:
-        raise RuntimeError("CI stack is not active; inspect it before retrying")
-    print(f"Portainer CI stack active (ID {stack['Id']}). Check runner registration and health.")
+    require_idle(api, browser_id)
+    browser_images = api.request("GET", f"/endpoints/{browser_id}/docker/images/json")
+    if not any(image in (i.get("RepoTags") or []) for i in browser_images):
+        with tempfile.TemporaryDirectory(prefix="ci-browser-image-") as tmp:
+            archive = Path(tmp) / "image.tar"
+            subprocess.run(["docker", "--host", "unix:///run/user/1102/docker.sock",
+                            "image", "save", image, "--output", str(archive)], check=True)
+            api.request("POST", f"/endpoints/{browser_id}/docker/images/load", archive=archive)
+
+    for target_id, filename in [(endpoint_id, "compose.yaml"), (browser_id, "compose-browser.yaml")]:
+        require_idle(api, target_id)
+        compose = (directory / filename).read_text()
+        yaml.safe_load(compose)
+        environment = [{"name": "RUNNER_IMAGE", "value": image}]
+        stacks = api.request("GET", "/stacks")
+        matches = [s for s in stacks if s["EndpointId"] == target_id and s["Name"] == "dealpipe-ci"]
+        if len(matches) > 1:
+            raise RuntimeError("Multiple CI stacks; resolve in Portainer")
+        if matches:
+            stack = api.request("PUT", f"/stacks/{matches[0]['Id']}?endpointId={target_id}",
+                                {"StackFileContent": compose, "Env": environment, "Prune": True, "PullImage": False})
+        else:
+            stack = api.request("POST", f"/stacks/create/standalone/string?endpointId={target_id}",
+                                {"Name": "dealpipe-ci", "StackFileContent": compose, "Env": environment})
+        deadline = time.monotonic() + 180
+        while stack["Status"] == 3 and time.monotonic() < deadline:
+            time.sleep(5)
+            stack = api.request("GET", f"/stacks/{stack['Id']}")
+        if stack["Status"] != 1:
+            raise RuntimeError("CI stack is not active; inspect it before retrying")
+        print(f"Portainer CI stack active (ID {stack['Id']}, environment {target_id}).")
 
 
 if __name__ == "__main__":

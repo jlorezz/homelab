@@ -32,22 +32,6 @@ services:
       RUNNER_NAME: dealpipe-nas-ci
       RUNNER_LABEL: dealpipe-nas-ci
 
-  # Browser services use their own Supabase project and 278xx ports.
-  browser:
-    <<: *runner
-    volumes:
-      - /var/lib/dealpipe-ci/browser/runner:/runner
-      - /var/lib/dealpipe-ci/browser/home:/home/ci
-      - /var/lib/dealpipe-ci/browser/work:/var/lib/dealpipe-ci/browser/work
-      - /run/user/1102/docker.sock:/var/run/docker.sock
-      - /var/lib/dealpipe-ci/secrets/registration-token:/run/secrets/registration-token:ro
-      - /var/lib/agent-workloads/heavy.lock:/run/agent-workload.lock
-    environment:
-      TZ: Europe/Berlin
-      RUNNER_NAME: dealpipe-nas-browser
-      RUNNER_LABEL: dealpipe-nas-browser
-      RUNNER_WORK_DIRECTORY: /var/lib/dealpipe-ci/browser/work
-
   # No Docker socket: routing, policy, quality, typechecks and unit tests.
   static:
     <<: *runner

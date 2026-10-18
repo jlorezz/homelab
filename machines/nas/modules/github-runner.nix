@@ -2,6 +2,12 @@
 let
   cfg = config.qnoxslab.githubRunner;
   docker = config.virtualisation.docker.package;
+  browserDaemonConfig = pkgs.writeText "dealpipe-browser-daemon.json" (builtins.toJSON {
+    "data-root" = "/var/lib/dealpipe-ci/browser/docker";
+    "dns" = [ "1.1.1.1" "9.9.9.9" ];
+    "log-driver" = "local";
+    "log-opts" = { "max-size" = "10m"; "max-file" = "3"; };
+  });
 in
 {
   options.qnoxslab.githubRunner.enable = lib.mkEnableOption "dedicated rootless Docker engine for Dealpipe CI";
@@ -35,6 +41,27 @@ in
     systemd.user.services.docker.environment.DOCKERD_ROOTLESS_ROOTLESSKIT_DETACH_NETNS = "false";
     # No CI service needs inbound access from the NAS; publish only within CI.
     systemd.user.services.docker.environment.DOCKERD_ROOTLESS_ROOTLESSKIT_PORT_DRIVER = "none";
+
+    # A second RootlessKit namespace keeps core database network changes out
+    # of Chromium's network namespace. Both engines retain the CI user slice.
+    systemd.user.services.docker-browser = {
+      description = "Isolated rootless Docker engine for Dealpipe browser CI";
+      wantedBy = [ "default.target" ];
+      unitConfig = builtins.removeAttrs config.systemd.user.services.docker.unitConfig [ "Description" ];
+      environment = config.systemd.user.services.docker.environment // {
+        PATH = lib.mkForce config.systemd.user.services.docker.environment.PATH;
+        XDG_RUNTIME_DIR = "%t/dealpipe-browser";
+      };
+      serviceConfig = config.systemd.user.services.docker.serviceConfig // {
+        ExecStart = "${docker}/bin/dockerd-rootless --config-file=${browserDaemonConfig}";
+        RuntimeDirectory = "dealpipe-browser";
+        RuntimeDirectoryMode = "0700";
+      };
+      # RootlessKit's DNS proxy failed registry lookups during CI recovery.
+      postStart = ''
+        printf 'nameserver 1.1.1.1\nnameserver 9.9.9.9\n' > "$XDG_RUNTIME_DIR/dockerd-rootless/resolv.conf"
+      '';
+    };
 
     # Aggregate ceilings cover three CI lanes, the engine, and all test services.
     # These are admission limits, not measured build requirements.
@@ -84,6 +111,16 @@ in
         timeout 80s ${pkgs.bash}/bin/bash -c 'until docker --host unix:///run/user/1102/docker.sock info >/dev/null 2>&1; do sleep 1; done'
       '';
     };
+    systemd.services.dealpipe-ci-browser-ready = {
+      description = "Wait for the isolated browser CI engine";
+      requires = [ "user@1102.service" ];
+      after = [ "user@1102.service" ];
+      serviceConfig = { Type = "oneshot"; RemainAfterExit = true; TimeoutStartSec = "90s"; };
+      path = [ docker pkgs.coreutils ];
+      script = ''
+        timeout 80s ${pkgs.bash}/bin/bash -c 'until docker --host unix:///run/user/1102/dealpipe-browser/docker.sock info >/dev/null 2>&1; do sleep 1; done'
+      '';
+    };
     # Portainer 2.45.2's Compose path ignores a non-default local Unix socket.
     # A dedicated agent makes Compose and direct API operations target the same
     # CI engine. The agent is trusted management infrastructure, not a CI job.
@@ -106,10 +143,22 @@ in
         ];
         extraOptions = [ "--network=portainer-management" "--memory=256m" "--memory-swap=256m" ];
       };
+      portainer-ci-browser-agent = {
+        image = "docker.io/portainer/agent:2.45.2";
+        volumes = [
+          "/run/user/1102/dealpipe-browser/docker.sock:/var/run/docker.sock:ro"
+          "/var/lib/dealpipe-ci/browser/docker/volumes:/var/lib/docker/volumes"
+        ];
+        extraOptions = [ "--network=portainer-management" "--memory=256m" "--memory-swap=256m" ];
+      };
     };
     systemd.services.docker-portainer-ci-agent = {
       requires = [ "dealpipe-ci-ready.service" "portainer-management-network.service" ];
       after = [ "dealpipe-ci-ready.service" "portainer-management-network.service" ];
+    };
+    systemd.services.docker-portainer-ci-browser-agent = {
+      requires = [ "dealpipe-ci-browser-ready.service" "portainer-management-network.service" ];
+      after = [ "dealpipe-ci-browser-ready.service" "portainer-management-network.service" ];
     };
     systemd.services.docker-portainer = {
       requires = [ "docker-portainer-ci-agent.service" ];

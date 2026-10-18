@@ -30,6 +30,12 @@ in
     # The distribution provides a user service globally; only CI may start it.
     systemd.user.services.docker.unitConfig.ConditionUser = lib.mkForce "dealpipe-ci";
     systemd.user.services.docker.environment.RES_OPTIONS = "timeout:1 attempts:1";
+    # Container DNS does not configure dockerd's own registry resolver. The
+    # Slirp proxy failed ECR lookups while direct public DNS succeeded.
+    # RootlessKit bind-mounts this state file into the daemon's namespace.
+    systemd.user.services.docker.postStart = ''
+      printf 'nameserver 1.1.1.1\nnameserver 9.9.9.9\n' > "$XDG_RUNTIME_DIR/dockerd-rootless/resolv.conf"
+    '';
     # Docker 29.5+ otherwise gives --network=host the real NAS namespace.
     # Keep CI localhost and published test ports inside RootlessKit instead.
     systemd.user.services.docker.environment.DOCKERD_ROOTLESS_ROOTLESSKIT_DETACH_NETNS = "false";

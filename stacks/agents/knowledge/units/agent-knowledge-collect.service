@@ -1,5 +1,5 @@
 [Unit]
-Description=Collect agent proposals into the human review Inbox
+Description=Publish evidenced project knowledge and collect review proposals
 RequiresMountsFor=/storage/obsidian
 
 [Service]
@@ -11,6 +11,7 @@ ProtectHome=true
 PrivateTmp=true
 PrivateNetwork=true
 ReadWritePaths=/storage/obsidian/Brain/Inbox
+ReadWritePaths=/storage/obsidian/Brain/Projects
 ReadWritePaths=@state@/evidence
 UMask=0002
 MemoryMax=128M

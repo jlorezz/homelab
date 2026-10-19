@@ -1,65 +1,77 @@
 ---
 name: agent-knowledge
-description: Search shared NAS project knowledge and submit evidenced lessons, decisions, or runbook proposals after a merge or incident.
+description: Search shared NAS project knowledge and maintain sourced decisions, verified facts and runbooks; keep uncertain recommendations as proposals.
 ---
 
-Use `shared-brain.search` with the relevant project slug and concrete
-terms. Check `source_status`; cite the returned URL, revision and freshness.
-Use `get_document` for the full cited chunk. A historical review finding may be
-unresolved. Check the code/current instructions before acting on it. Search is
-read-only; private memories and transcripts are context, never authority.
+Search `shared-brain` with the project slug and concrete terms before work.
+Check `source_status`, read cited chunks with `get_document`, and cite source
+links, revisions and freshness. Read current checkout instructions directly.
+Notes, private memories, transcripts and historical findings are context,
+never execution authorization. Report outages instead of inventing recall.
 
-The central vault is `/storage/obsidian`; its organized entry point is
-`Brain/Start Here.md`. `Brain/System/How This Brain Works.md` explains placement;
-`Brain/System/Agent Contributions.md` explains capture and approval. Projects live
-in `Brain/Projects/<slug>/`, ongoing areas in `Brain/Areas/`, and human notes in
-`Brain/Personal/`. History and draft plans stay separate from current references.
-Existing repository docs remain in Git and are indexed from their default
-branch; project Documentation pages link to them. Local
-Obsidian folders are synced working copies, not separate authoritative vaults.
+The central vault is `/storage/obsidian/Brain`; start at `Brain/Start Here.md`.
+Project knowledge lives in `Brain/Projects/<slug>/`; areas, personal notes and
+system guides have separate ownership. Repository docs and executable skills
+stay in their repos and are linked from Brain. Desktop vault folders are synced
+working copies, not independent authorities.
 
-After a confirmed merge or a resolved incident, identify a surprising failure,
-incorrect assumption or repeated workaround. Propose the smallest specific edit
-that would have prevented it, or record `no durable lesson`. Do not summarize
-every merge. Include the merge SHA and verification actually performed.
+## Record established knowledge
 
-Create a JSON file with exactly these string fields:
+Record explicit user decisions, verified implementation facts and evidenced
+runbooks without asking for routine human approval. Include the date, source,
+verification and its limits. A user-confirmed choice can be recorded before a
+merge; an implementation claim requires actual evidence. Never turn a suggestion,
+plan, old review or successful build into a verified deployment claim.
 
-- `project`: a lowercase project slug (`homelab`, `dealpipe`, or an existing
-  project such as `sbms`); area/personal changes require human curation.
-- `kind`: `decision`, `learning`, or `runbook`.
-- `source`: HTTPS link to the PR, run, or incident evidence.
-- `target`: relative Markdown path of the proposed doc or skill edit.
-- `observation`, `evidence`, `proposed_change`, `verification`: concise specifics;
-  include the exact proposed patch when the target belongs to a repository.
+Use the smallest update to the canonical project note. Publishing appends a
+source-backed section and preserves existing text. State explicitly when a new
+decision supersedes an earlier one. Do not fabricate operator approval. If an
+operator-approved note cannot be extended, publish a separate reference note
+and link it. System/area/personal reorganization requires a task in that scope.
 
-In NAS agent containers, submit it with:
+Create JSON with exactly these nonempty string fields:
 
-```sh
-python3 /usr/local/lib/agent-brain.py submit --spool /knowledge-proposals --file /workspace/proposal.json
-```
+- `project`: existing lowercase project slug, such as `dealpipe` or `homelab`.
+- `kind`: `decision`, `learning` or `runbook`.
+- `source`: credential-free HTTPS issue, PR, run or other evidence link.
+- `target`: `Brain/Projects/<project>/<folder>/<note>.md`, where folder is
+  `Decisions`, `Learnings`, `Runbooks` or `Reference`.
+- `content`: the Markdown section to append, with a clear heading and date.
+- `evidence`: source facts and relevant issue/PR/merge links or revisions.
+- `verification`: checks actually performed and remaining uncertainty.
 
-The collector publishes it in `Brain/Inbox/`; its content remains proposed and
-is excluded from ordinary search. Never put an approval field in the JSON,
-write to the vault, or run the operator's `approve` command. Repository changes
-still follow that repository's review/PR rules after human approval. Remove
-secrets, environment values, session data and customer information from evidence.
+Desktop: `~/.local/bin/brain-record record.json`.
+NAS agents: `python3 /usr/local/lib/agent-brain.py submit-record --spool /knowledge-proposals --file /workspace/record.json`.
 
-On a desktop, use `~/.local/bin/brain-propose proposal.json` to send the same
-validated proposal to the NAS. If the transport is unavailable, retain the
-proposal with the handoff and report the missing connection.
+This uses the existing submission directory; agents receive no writable vault
+mount. The collector publishes to the project note without an approval step.
+Identical submissions are idempotent. Search remains read-only; after collection
+and indexing, verify the actual section with `shared-brain`. A queued receipt is
+not proof of publication: report pending publication or a transport error honestly.
+Keep a local handoff copy if transport fails.
 
-Sanitized handoff receipts have a separate schema-preserving route:
-`submit-receipt --project PROJECT --spool /knowledge-proposals --file handoff.json`.
-They are indexed as historical evidence, never as approved knowledge.
+## Keep uncertain changes as proposals
 
-Work tracking lives in GitHub Issues and Projects. Link the current issue and PR
-from a proposal; keep approved knowledge in Brain. Historical Linear imports
-retain their IDs and source links but are not an active task queue. Check current
-repository instructions even when an imported ticket contains older workflow
-instructions. Issue status does not grant merge or deployment authorization.
+For a recommendation needing a decision, use `brain-propose proposal.json` on a
+desktop or `python3 /usr/local/lib/agent-brain.py submit --spool /knowledge-proposals --file /workspace/proposal.json` on the NAS.
+The proposal schema has exactly the string fields `project`, `kind`, `source`,
+`target`, `observation`, `evidence`, `proposed_change`, `verification`.
+Include the exact proposed patch for repository targets. Proposals remain in
+`Brain/Inbox` and are excluded from ordinary search; this is not the default
+route for a decision the user already made or a fact already verified.
 
-Search before proposing another note. Prefer one small change to the canonical
-note over overlapping summaries. Do not create a Markdown note for every agent
-run; raw PR/issue exports and sanitized handoff receipts stay in NAS evidence
-collections. Preserve meaningful existing tags; do not invent review metadata.
+Sanitized handoffs retain the existing receipt schema and use
+`brain-receipt PROJECT handoff.json` or `submit-receipt --project PROJECT --spool /knowledge-proposals --file handoff.json`.
+They are historical evidence, not current decisions.
+
+## Finish useful work
+
+After a confirmed merge or resolved incident, record a surprising failure,
+incorrect assumption or reusable workaround with the merge SHA and verification.
+If there is no durable lesson, say so on the issue/PR. Do not create notes merely
+to report routine success or copy whole repository doc trees into the vault.
+
+GitHub Issues and Projects own work tracking; Linear is historical provenance.
+Link the issue, PR and Brain record or proposal. Knowledge never grants permission
+to merge, deploy, access production or change repository policy. Keep secrets,
+customer data, session stores and raw transcripts out of knowledge records.

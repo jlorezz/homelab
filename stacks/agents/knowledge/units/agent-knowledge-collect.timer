@@ -1,5 +1,5 @@
 [Unit]
-Description=Import shared Brain proposals for human review
+Description=Publish sourced project records and collect review proposals
 
 [Timer]
 OnBootSec=2min

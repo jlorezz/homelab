@@ -6,7 +6,8 @@ migration, LiveSync and restore have been verified; synced deletions propagate.
 The former standalone Brain archive was intentionally removed by the user.
 All remaining notes are organized under `Brain`: Projects, Areas, Personal, Inbox,
 System, Templates and Archive. Existing notes remain reference, historical or
-draft; only operator-approved proposals carry approval provenance.
+draft. Agents also publish sourced project records without a routine approval
+step; only actual operator approvals carry approval provenance.
 Repository documentation stays in Git; project Documentation pages link to the
 current branch and the pinned imported catalog. See `Brain/System/How This Brain
 Works.md` for the vault handbook.
@@ -35,9 +36,29 @@ The socket's runtime directory is preserved across service restarts so container
 bind mounts keep following the same directory inode. Replacing that directory
 requires recreating the affected agent containers, not just restarting MCP.
 
+Publishing changes must be committed and integrated before activating the NAS
+generation. A temporary collector/CLI rollout is overwritten by the next NixOS
+activation if its source is absent from that generation. Build from the exact
+committed revision, retain that source with the deployment receipt, and verify
+the active collector's `ExecStart` and desktop `brain-admin` resolve to its
+`brain.py` (compare SHA-256), with `submit-record` in CLI help. Check the
+container's `/usr/local/lib/agent-brain.py` separately: its file bind mount can
+retain the previous inode after a host helper replacement. Update/recreate it
+through the normal agent rollout if it differs; a host rebuild alone is not
+proof that a running container has the same helper. Finally publish a sourced
+record, retry it to verify idempotency, and confirm normal search visibility.
+
 `collect` validates proposal JSON and publishes new notes exclusively in Inbox.
+`submit-record` queues source-backed project sections in a separate records
+subdirectory. The collector validates their project-local Markdown targets and
+appends idempotent sections under Decisions, Learnings, Runbooks or Reference.
+It preserves existing content, refuses symlink destinations and does not extend
+operator-approved notes. Records are indexed as reference, never fabricated
+operator approval. Explicit user decisions and verified facts use this route;
+uncertain recommendations stay proposals.
+
 A separate schema-validating route publishes sanitized handoff receipts as
-historical evidence. Neither route can approve knowledge. The operator's
+historical evidence. Neither route fabricates operator approval. The operator's
 `approve` command creates a new note under the project's Decisions, Learnings or
 Runbooks. It does not apply repository patches or authorize a PR/merge.
 
@@ -84,7 +105,7 @@ python3 stacks/agents/knowledge/desktop.py install --known-hosts /path/to/verifi
 claude mcp add --scope user --transport stdio shared-brain -- ~/.local/bin/brain-mcp
 ```
 
-The generated `brain-mcp`, `brain-propose`, and `brain-receipt` wrappers keep all
+The generated `brain-mcp`, `brain-record`, `brain-propose`, and `brain-receipt` wrappers keep all
 storage and retrieval on the NAS. Tailscale SSH may require an interactive login
 check. Its host key differs from LAN OpenSSH; obtain it from the authenticated
 Tailscale network map, not from an unverified scan. Desktop skills and startup

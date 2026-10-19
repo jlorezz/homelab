@@ -2,6 +2,8 @@ import importlib.util
 import json
 import os
 import stat
+import subprocess
+import sys
 from unittest.mock import patch
 from pathlib import Path
 import sqlite3
@@ -166,6 +168,61 @@ class KnowledgeTests(unittest.TestCase):
         data['approved'] = True
         with self.assertRaises(ValueError):
             brain.validate_proposal(data)
+
+    def record(self):
+        return dict(project='homelab', kind='learning',
+                    source='https://github.com/jlorezz/homelab/issues/9',
+                    target='Brain/Projects/homelab/Learnings/Publishing.md',
+                    content='## Publishing regression, 2026-10-19\n\nrecordregressionword',
+                    evidence='The deployed CLI lacked submit-record.',
+                    verification='Isolated CLI, collection and search check.')
+
+    def test_record_cli_collection_preserves_history_and_is_searchable_once(self):
+        data = self.record()
+        file = self.root / 'record.json'
+        file.write_text(json.dumps(data))
+        spool, vault = self.root / 'knowledge/proposals', self.docs
+        target = vault / 'Projects/homelab/Learnings/Publishing.md'
+        target.parent.mkdir(parents=True)
+        original = '# Publishing\n\nExisting human decision.\n'
+        target.write_text(original)
+        command = [sys.executable, str(MODULE), 'submit-record', '--spool', str(spool / 'desktop'), '--file', str(file)]
+        first = json.loads(subprocess.check_output(command))
+        self.assertEqual('queued', first['status'])
+        self.assertEqual(first, json.loads(subprocess.check_output(command)))
+        self.assertEqual(1, brain.collect(spool, vault)['recorded'])
+        published = target.read_text()
+        self.assertTrue(published.startswith(original))
+        self.assertEqual(1, brain.collect(spool, vault)['duplicates'])
+        self.assertEqual(published, target.read_text())
+        self.index()
+        self.assertEqual('reference', self.search('recordregressionword')[0]['status'])
+
+    def test_records_reject_cross_project_targets_symlinks_and_operator_approvals(self):
+        data = self.record()
+        for target in ['Brain/Projects/dealpipe/Learnings/Publishing.md',
+                       'Brain/System/Publishing.md',
+                       'Brain/Projects/homelab/../../System/Publishing.md',
+                       'Brain/Projects/homelab/History/Publishing.md']:
+            with self.subTest(target=target), self.assertRaises(ValueError):
+                brain.validate_record({**data, 'target': target})
+        file = self.root / 'proposal.json'
+        file.write_text(json.dumps(self.proposal()))
+        spool, vault = self.root / 'knowledge/proposals', self.docs
+        brain.submit(spool / 'desktop', file)
+        brain.collect(spool, vault)
+        target = Path(brain.approve(next((vault / 'Inbox').glob('*.md')), vault, 'human'))
+        original = target.read_text()
+        data['target'] = 'Brain/' + target.relative_to(vault).as_posix()
+        with self.assertRaises(ValueError):
+            brain.publish_record(vault, data, brain.validate_record(data))
+        self.assertEqual(original, target.read_text())
+        data = self.record()
+        destination = vault / 'Projects/homelab/Learnings/Publishing.md'
+        destination.symlink_to(target)
+        with self.assertRaises(ValueError):
+            brain.publish_record(vault, data, brain.validate_record(data))
+        self.assertEqual(original, target.read_text())
 
     def test_mcp_has_no_write_tools_and_reports_protocol_errors(self):
         (self.docs / 'note.md').write_text('mcpword')

@@ -59,14 +59,16 @@ The Clan CLI provides commands for machine management, deployment, and secrets. 
 Project documentation lives in the Obsidian vault under `Brain/Projects/homelab/`:
 
 The main vault is `/storage/obsidian` on the NAS and is the single source of truth
-for homelab documentation. Humans curate notes there; agents submit evidenced
-Inbox proposals. Do not keep a vault documentation mirror in this repository.
+for homelab documentation. Agents maintain source-backed project knowledge through
+`brain-record`; uncertain recommendations remain Inbox proposals. Routine capture
+needs no human approval. Do not keep a vault documentation mirror in this repository.
 The desktop working copy is `G:\obsidian-notes\NAS`. The central organized Brain
 is `/storage/obsidian/Brain`; the former standalone archive was intentionally
 removed by the user. Open `Brain/Start Here.md` for project entry
 points. Desktop folders are synced working copies; deleting their contents can
 propagate to the NAS. Agents search the read-only `shared-brain` MCP service and
-submit proposals through the collector, never by editing vault notes. Notes use self-hosted LiveSync/CouchDB, not paid Obsidian Sync.
+publish sourced project records through the collector and keep uncertain suggestions
+as proposals. Knowledge records never grant execution authorization. Notes use self-hosted LiveSync/CouchDB, not paid Obsidian Sync.
 Syncthing was removed on 2026-10-15; LiveSync is the only notes sync service.
 
 Current runbooks cover power/memory, maintenance, backups, restore, disaster
@@ -86,7 +88,7 @@ merging can discard systemd settings.
 - **Decisions/**, **Learnings/** - reusable project knowledge
 - **History/** and **Plans/** - dated evidence and design drafts
 
-When making infrastructure changes, propose corresponding Brain updates through
+When making infrastructure changes, record evidenced Brain updates through
 the agent-knowledge workflow. The vault handbook is
 `Brain/System/How This Brain Works.md`.
 

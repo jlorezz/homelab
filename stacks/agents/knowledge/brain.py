@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""NAS-owned knowledge index, read-only MCP, and operator-owned proposal workflow.
+"""NAS-owned knowledge index, read-only MCP, and evidenced project publishing.
 
 Only index/collect/approve write durable files. serve opens SQLite mode=ro;
 bridge is a credential-free stdio client over a permission-controlled Unix socket.
@@ -7,6 +7,7 @@ bridge is a credential-free stdio client over a permission-controlled Unix socke
 import argparse
 from contextlib import closing
 import datetime as dt
+import fcntl
 import fnmatch
 import hashlib
 import http.client
@@ -476,6 +477,68 @@ def render_proposal(data, ident):
     return text
 
 
+def validate_record(data):
+    required = {'project', 'kind', 'source', 'target', 'content', 'evidence', 'verification'}
+    if not isinstance(data, dict) or set(data) != required or not all(isinstance(v, str) and v.strip() for v in data.values()):
+        raise ValueError('Record requires exactly: ' + ', '.join(sorted(required)))
+    # Reuse the proposal boundary checks, including credential-free source URLs.
+    validate_proposal({**{k: data[k] for k in ['project', 'kind', 'source', 'target', 'evidence', 'verification']},
+                       'observation': data['content'], 'proposed_change': data['content']})
+    prefix = 'Brain/Projects/' + data['project'] + '/'
+    if not data['target'].startswith(prefix):
+        raise ValueError('Records can publish only within their project')
+    relative = PurePosixPath(data['target']).relative_to(prefix)
+    if len(relative.parts) < 2 or relative.parts[0] not in {'Decisions', 'Learnings', 'Runbooks', 'Reference'}:
+        raise ValueError('Use a project Decisions, Learnings, Runbooks or Reference note')
+    return digest(json.dumps(data, sort_keys=True))[:24]
+
+
+def submit_record(spool, file):
+    data = json.loads(read_regular(Path(file)))
+    ident = validate_record(data)
+    target = Path(spool) / 'records' / (ident + '.json')
+    try: write_new(target, json.dumps(data, indent=2) + '\n')
+    except FileExistsError:
+        if json.loads(read_regular(target)) != data:
+            raise ValueError('Conflicting record')
+    return {'record_id': ident, 'submission': str(target), 'target': data['target'], 'status': 'queued'}
+
+
+def publish_record(brain, data, ident):
+    root = Path(brain)
+    relative = PurePosixPath(data['target']).relative_to('Brain')
+    target = root / relative
+    for path in [root, *(root / PurePosixPath(*relative.parts[:i]) for i in range(1, len(relative.parts) + 1))]:
+        if path.is_symlink():
+            raise ValueError('Symlink in record destination')
+    marker = '<!-- brain-record:' + ident + ' -->'
+    existing = read_regular(target) if target.exists() else ''
+    if marker in existing:
+        return False
+    if has_operator_approval(existing):
+        raise ValueError('Preserve operator-approved notes; publish a separate reference note')
+    text = '\n\n' + marker + '\n' + data['content'].strip() + '\n\n'
+    text += 'Source: ' + data['source'] + '\n\n'
+    text += 'Evidence: ' + data['evidence'].strip() + '\n\n'
+    text += 'Verification: ' + data['verification'].strip() + '\n\n'
+    text += 'Recorded by agent on ' + now() + '; source-backed reference, not an operator approval or execution authorization.\n'
+    text += '<!-- /brain-record:' + ident + ' -->\n'
+    if len((existing + text).encode()) > MAX_FILE:
+        raise ValueError('Record exceeds the existing index ingestion envelope; split the note')
+    if not target.exists():
+        front = {'project': data['project'], 'kind': data['kind'], 'status': 'reference'}
+        write_new(target, '---\n' + ''.join(k + ': ' + json.dumps(v) + '\n' for k, v in front.items()) + '---\n' + text)
+    else:
+        # Append preserves human edits and historical decisions. Collector locking
+        # serializes retries; deterministic markers prevent duplicate sections.
+        fd = os.open(target, os.O_WRONLY | os.O_APPEND | os.O_NOFOLLOW)
+        with os.fdopen(fd, 'w') as stream:
+            stream.write(text)
+            stream.flush()
+            os.fsync(stream.fileno())
+    return True
+
+
 def collect(spool, brain):
     result = {'collected': 0, 'duplicates': 0, 'invalid': 0, 'receipts': 0}
     for path in sorted(Path(spool).glob('*/*.json')):
@@ -511,6 +574,30 @@ def collect(spool, brain):
             except FileExistsError: pass
         except (OSError, ValueError, UnicodeError, StopIteration):
             result['invalid'] += 1
+    records = sorted(Path(spool).glob('*/records/*.json'))
+    if records:
+        # Outside worker-owned directories and the synced vault. The service
+        # already has write access to this evidence directory.
+        lock = Path(spool).parent / 'evidence' / '.records.lock'
+        lock.parent.mkdir(parents=True, exist_ok=True)
+        fd = os.open(lock, os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+        with os.fdopen(fd, 'a') as stream:
+            fcntl.flock(stream, fcntl.LOCK_EX)
+            result['recorded'] = 0
+            result['record_errors'] = []
+            for path in records:
+                try:
+                    if path.parent.is_symlink() or path.parent.parent.is_symlink():
+                        raise ValueError('Symlinked record directory')
+                    data = json.loads(read_regular(path))
+                    ident = validate_record(data)
+                    if publish_record(brain, data, ident):
+                        result['recorded'] += 1
+                    else:
+                        result['duplicates'] += 1
+                except (OSError, ValueError, UnicodeError) as error:
+                    result['invalid'] += 1
+                    result['record_errors'].append({'submission': path.name, 'error': str(error)})
     return result
 
 
@@ -725,7 +812,7 @@ def install_token():
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest='command', required=True)
-    for name in ['index', 'serve', 'bridge', 'search', 'status', 'collect', 'submit', 'submit-receipt', 'approve', 'export-prs', 'refresh', 'install-github-token']:
+    for name in ['index', 'serve', 'bridge', 'search', 'status', 'collect', 'submit', 'submit-record', 'submit-receipt', 'approve', 'export-prs', 'refresh', 'install-github-token']:
         p = sub.add_parser(name)
         if name in {'index', 'serve', 'search', 'status'}:
             p.add_argument('--db', type=Path, default=Path('/var/lib/agent-platform/knowledge/index.sqlite'))
@@ -735,11 +822,11 @@ def main():
             p.add_argument('--socket', type=Path, default=Path('/run/agent-knowledge/mcp.sock'))
         if name == 'search':
             p.add_argument('query'); p.add_argument('--project'); p.add_argument('--include-proposed', action='store_true')
-        if name in {'collect', 'submit', 'submit-receipt'}:
+        if name in {'collect', 'submit', 'submit-record', 'submit-receipt'}:
             p.add_argument('--spool', type=Path, required=True)
         if name in {'collect', 'approve'}:
             p.add_argument('--brain', type=Path, required=True)
-        if name in {'submit', 'submit-receipt'}:
+        if name in {'submit', 'submit-record', 'submit-receipt'}:
             p.add_argument('--file', type=Path, required=True)
         if name == 'submit-receipt':
             p.add_argument('--project', required=True)
@@ -769,6 +856,7 @@ def main():
         elif args.command == 'status': result = query(args.db, 'source_status', {})
         elif args.command == 'collect': result = collect(args.spool, args.brain)
         elif args.command == 'submit': result = submit(args.spool, args.file)
+        elif args.command == 'submit-record': result = submit_record(args.spool, args.file)
         elif args.command == 'submit-receipt': result = submit_receipt(args.spool, args.project, args.file)
         elif args.command == 'approve': result = approve(args.proposal, args.brain, args.actor)
         elif args.command == 'refresh': result = refresh(args.config)

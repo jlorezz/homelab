@@ -23,10 +23,12 @@ def run(action, arguments):
         return subprocess.call(ssh() + ['/var/lib/agent-platform/bin/brain-mcp'])
     if action == 'propose' and len(arguments) == 1:
         file, extra, command = arguments[0], '', 'submit'
+    elif action == 'record' and len(arguments) == 1:
+        file, extra, command = arguments[0], '', 'submit-record'
     elif action == 'receipt' and len(arguments) == 2 and re.fullmatch('[a-z][a-z0-9-]{0,63}', arguments[0]):
         file, extra, command = arguments[1], ' --project ' + shlex.quote(arguments[0]), 'submit-receipt'
     else:
-        raise SystemExit('Usage: brain-propose proposal.json | brain-receipt PROJECT handoff.json')
+        raise SystemExit('Usage: brain-record record.json | brain-propose proposal.json | brain-receipt PROJECT handoff.json')
     remote = '''set -eu
 proposal=$(mktemp /var/tmp/brain-submission.XXXXXX)
 trap 'rm -f "$proposal"' EXIT
@@ -46,7 +48,7 @@ def install(known_hosts, user, host, clients):
     if Path(__file__).resolve() != script.resolve(): shutil.copyfile(__file__, script)
     bindir = Path.home() / '.local/bin'
     bindir.mkdir(parents=True, exist_ok=True)
-    for name, action in [('brain-mcp', 'mcp'), ('brain-propose', 'propose'), ('brain-receipt', 'receipt')]:
+    for name, action in [('brain-mcp', 'mcp'), ('brain-record', 'record'), ('brain-propose', 'propose'), ('brain-receipt', 'receipt')]:
         path = bindir / name
         path.write_text('#!/bin/sh\nexec python3 ' + shlex.quote(str(script)) + ' ' + action + ' "$@"\n')
         path.chmod(0o755)
@@ -66,7 +68,7 @@ if __name__ == '__main__':
     setup.add_argument('--user', default='jlorezz')
     setup.add_argument('--host', default='100.125.180.36')
     setup.add_argument('--client', action='append', choices=['codex', 'claude', 'opencode'], default=[])
-    for action in ['mcp', 'propose', 'receipt']:
+    for action in ['mcp', 'record', 'propose', 'receipt']:
         sub.add_parser(action).add_argument('arguments', nargs='*')
     args = parser.parse_args()
     if args.action == 'install': install(args.known_hosts, args.user, args.host, args.client)

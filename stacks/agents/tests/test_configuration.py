@@ -68,6 +68,31 @@ class ConfigurationTests(unittest.TestCase):
         self.assertFalse((self.state / "policy").exists())
         self.assertEqual("User-owned skill", (skill / "SKILL.md").read_text())
 
+    def test_codex_seed_preserves_credentials_and_existing_settings(self):
+        config = self.state / "t3/.codex/config.toml"
+        config.parent.mkdir(parents=True)
+        config.write_text('model = "operator-model"\n')
+        auth = config.with_name("auth.json")
+        auth.write_text('{"private": "keep"}')
+        configure.provision(self.state, apply=True)
+        self.assertEqual('model = "operator-model"\n', config.read_text())
+        self.assertEqual('{"private": "keep"}', auth.read_text())
+        self.assertEqual("/opt/agent-policy/current/AGENTS.md",
+                         str(config.with_name("AGENTS.md").readlink()))
+
+    def test_codex_new_home_respects_knowledge_opt_in(self):
+        configure.provision(self.state, apply=True, enabled=[])
+        self.assertNotIn("shared-brain", (self.state / "t3/.codex/config.toml").read_text())
+
+    def test_codex_policy_collision_fails_before_writes(self):
+        policy = self.state / "t3/.codex/AGENTS.md"
+        policy.parent.mkdir(parents=True)
+        policy.write_text("Operator instructions")
+        with self.assertRaisesRegex(ValueError, "Codex policy collision"):
+            configure.provision(self.state, apply=True)
+        self.assertFalse((self.state / "policy").exists())
+        self.assertEqual("Operator instructions", policy.read_text())
+
     def test_jsonc_preserves_urls_and_comment_like_strings(self):
         self.assertEqual({"url": "https://host/a//b", "x": "/*text*/"}, configure.jsonc('{/*comment*/"url":"https://host/a//b","x":"/*text*/",}'))
 

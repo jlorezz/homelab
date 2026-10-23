@@ -31,7 +31,10 @@
     {
       inherit (clan.config) nixosConfigurations nixosModules clanInternals;
       packages.x86_64-linux.agent-image = import ./packages/agent-image.nix {
-        pkgs = nixpkgs.legacyPackages.x86_64-linux;
+        pkgs = import nixpkgs {
+          system = "x86_64-linux";
+          config.allowUnfreePredicate = pkg: nixpkgs.lib.getName pkg == "claude-code";
+        };
       };
       packages.x86_64-linux.agent-runtimes =
         let

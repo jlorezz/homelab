@@ -267,16 +267,84 @@ delete runner registration, application services or database volumes.
 
 ## Agent deployment and onboarding
 
-Portainer environment 2 owns the `homelab-agents` stack (ID 1). T3 remains on its
-existing pinned image; Hermes has been removed from the stack. The desktop T3
-coordinators and scheduler are separate from the NAS T3 server: their host must
-stay running for queue processing. See COORDINATOR.md for actual bindings.
+Portainer environment 2 owns the `homelab-agents` stack (ID 1). Hermes has been
+removed from the stack. The NAS hosts new, manually started T3 work; the old
+desktop delivery queues remain disabled. See COORDINATOR.md for historical
+bindings and the prerequisites for any future reactivation.
 
 In the T3 Portainer console as user **1100:1100**, authenticate with
 `opencode auth login`, discover models, then run `t3 pair` and pair the NAS at
 <https://nas.tailb80645.ts.net:3773>. Authenticate GitHub independently with
 `gh auth login` when that environment needs repository access. Existing private
 provider and Portainer credentials stay in their owning homes.
+
+## Always-on NAS workspace
+
+Use the NAS environment at <https://nas.tailb80645.ts.net:3773> for new threads
+and connect to it from the Mac. The Windows/WSL environment remains available
+for optional heavy work while the PC is on. Existing desktop thread history,
+worktrees and disabled schedules remain on that environment; connecting the Mac
+does not migrate them. Do not copy live T3 SQLite files between machines.
+
+The image pins T3 and Codex in `packages/t3-nightly.nix` and `packages/codex.nix`.
+Codex needs the complete platform bundle, including `codex-code-mode-host` and
+its resources: a CLI-only install can pass login/version checks but fail every
+tool call. The image also supplies the ELF loader, shared libraries and fonts
+for T3's downloaded Chrome. Verify an actual `preview_open` after upgrades.
+Claude Code comes from the locked Nixpkgs package, which patches its Linux
+binary and disables CLI self-updates. A generic `curl | bash` installer on the
+NixOS host can fail at its ELF loader and does not install a provider inside T3.
+Authenticate in the worker with
+`docker exec -it -u 1100:1100 homelab-agents-t3-1 claude auth login`, then enable
+Claude Code in the NAS provider settings and verify a real turn. Browser login
+may require opening the printed URL on the Mac and pasting the returned code
+directly into that terminal; never put the code in chat or source control.
+The persistent `/home/agent` holds provider authentication and T3 state. GitHub
+uses HTTPS with `gh auth setup-git`; no host SSH key is mounted into the worker.
+The workspaces are `/workspace/homelab` and `/workspace/dealpipe`.
+`configure-agents` seeds a missing Codex configuration with the opted-in Brain
+bridge and links its instructions to the reviewed policy. It preserves existing
+Codex settings and authentication, and rejects instruction-file collisions.
+Existing Codex configurations need their Brain integration checked separately.
+
+New NAS threads default to separate worktrees. Dealpipe's NAS project has a
+manual **Install NAS dependencies** action, running
+`agent-workload run --queue-timeout 1800 --timeout 1800 -- bun install --frozen-lockfile`.
+Its desktop setup script is not imported: that script requires a development
+`.env` and Docker-managed per-worktree Supabase/Redis, while the agent container
+has no Docker socket. Full-stack Dealpipe previews require a separate adaptation;
+do not silently substitute `/workspace/.dealpipe-testing.env`, copy production
+settings, or grant host Docker access. Repository access and model/tool execution
+alone do not establish application integration readiness.
+
+Generate a fresh one-time pairing link **when the Mac is ready**, in the T3
+container as UID 1100, with `t3 pair` (see `t3 pair --help` for the public address
+option). Paste it into **Settings → Connections → Add environment** on the Mac.
+Use the NAS HTTPS address, not container localhost. Pairing credentials stay out
+of Git, Brain, issue comments and logs. Each client retains its own connection
+and load-balancing preferences; choose NAS explicitly for normal work and Windows
+explicitly for heavy work. See [T3 remote access](https://github.com/pingdotgg/t3code/blob/main/docs/user/remote-access.md).
+
+All agent subprocesses remain under the container and aggregate cgroup ceilings.
+The parent `agent.slice` has CPU/I/O weight 20, below the default-weight parent
+slices containing CI. `agent-workload` still gates heavy commands against CI;
+weights do not preempt a running build or reserve memory. Test actual CI latency
+before increasing concurrency. A narrow rollout may use persistent
+`systemctl set-property agent.slice CPUWeight=20 IOWeight=20` with the matching
+Nix definition, avoiding activation of unrelated host changes.
+
+Before a container upgrade, save SQLite online backups and the Portainer stack
+in a root-only maintenance directory. Preserve existing network attachments,
+including `dealpipe-testing_testing` if present: an attachment made outside
+Compose is lost during replacement. Deploy through Portainer, then verify the
+image, provider login, a real model turn, Brain access and restart recovery.
+A healthy HTTP page alone proves neither model access nor scheduler execution.
+
+The old queue registry still identifies desktop-bound coordinators. A NAS
+workspace is not permission to re-enable disabled delivery/monitoring tasks.
+Create and validate any new NAS coordinator/schedules separately against the
+current application guide; never reuse old absolute paths or start historical
+Ready cards by replacing the queue baseline.
 
 ## OpenCode account configuration
 

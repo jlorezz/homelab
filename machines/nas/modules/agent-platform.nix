@@ -47,6 +47,13 @@ in
         "f /var/lib/agent-workloads/heavy.lock 0666 root root -"
       ];
 
+    # Compete below the default-weight user/system slices, which contain CI.
+    # Weights on agent-workloads alone cannot prioritize a different parent tree.
+    systemd.slices.agent.sliceConfig = {
+      CPUWeight = 20;
+      IOWeight = 20;
+    };
+
     # Shared ceiling, including build/test subprocesses inside the containers.
     systemd.slices.agent-workloads = {
       description = "Resource budget for Portainer-managed agent containers";

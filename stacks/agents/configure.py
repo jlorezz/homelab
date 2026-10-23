@@ -128,6 +128,20 @@ def provision(state, source=HERE, apply=False, enabled=None):
     ])
     links = []
     for worker in ("t3", "opencode"):
+        # Seed Codex without replacing an operator's provider/MCP settings.
+        codex_config = state / worker / ".codex/config.toml"
+        refuse_symlink_path(state, codex_config)
+        if not codex_config.exists():
+            initial = (source / "codex.toml").read_text() if "shared-brain" in enabled else ""
+            desired.append((codex_config, initial, 1100, "text"))
+        codex_policy = state / worker / ".codex/AGENTS.md"
+        refuse_symlink_path(state, codex_policy.parent)
+        codex_target = f"{RUNTIME}/AGENTS.md"
+        if (codex_policy.exists() or codex_policy.is_symlink()) and (
+            not codex_policy.is_symlink() or os.readlink(codex_policy) != codex_target
+        ):
+            raise ValueError(f"Codex policy collision at {codex_policy}; preserve the existing instructions")
+        links.append((codex_policy, codex_target))
         for skill in sorted((policy / "skills").iterdir()):
             path = state / worker / ".agents/skills" / skill.name
             refuse_symlink_path(state, path.parent)

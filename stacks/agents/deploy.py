@@ -90,6 +90,7 @@ def main():
     parser.add_argument("--name", default="homelab-agents")
     parser.add_argument("--wait-seconds", type=int, default=600, help="Maximum time to wait for asynchronous Portainer deployment")
     parser.add_argument("--with-opencode", action="store_true")
+    parser.add_argument("--with-previews", action="store_true", help="Attach provisioned NAS preview backends and private ingress ports")
     parser.add_argument("--opencode-password-file")
     args = parser.parse_args()
 
@@ -117,6 +118,14 @@ def main():
     (profile_directory / profile_name).write_bytes(profile_bytes)
     environment.append({"name": "AGENT_BROWSER_SECCOMP", "value": "/data/agent-profiles/" + profile_name})
     compose = yaml.safe_load((args.stack_directory / "compose.yaml").read_text())
+    if args.with_previews:
+        previews = yaml.safe_load((args.stack_directory / "compose.previews.yaml").read_text())
+        for key in ["ports", "volumes"]:
+            compose["services"]["t3"][key].extend(previews["services"]["t3"][key])
+        compose["services"]["t3"]["networks"] = previews["services"]["t3"]["networks"]
+        compose["services"]["t3"]["extra_hosts"] = previews["services"]["t3"]["extra_hosts"]
+        compose["services"]["t3"]["dns"] = previews["services"]["t3"]["dns"]
+        compose["networks"] = {"default": {}, **previews["networks"]}
     if args.with_opencode:
         if not args.opencode_password_file:
             parser.error("--with-opencode requires --opencode-password-file")

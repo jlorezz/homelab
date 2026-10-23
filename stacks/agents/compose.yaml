@@ -24,9 +24,14 @@ services:
     memswap_limit: 10g
     pids_limit: 2048
     cap_drop: [ALL]
-    security_opt: [no-new-privileges:true]
+    # Compose reads this file inside the Portainer server's persistent /data mount.
+    security_opt:
+      - no-new-privileges:true
+      - "seccomp=${AGENT_BROWSER_SECCOMP:?Run deploy-agents to stage browser-seccomp.json}"
     environment:
       TZ: Europe/Berlin
+      PATH: /home/agent/.local/bin:/bin
+      NPM_CONFIG_PREFIX: /home/agent/.local
     healthcheck:
       test: [CMD, curl, --fail, --silent, --output, /dev/null, "http://127.0.0.1:3773/"]
       interval: 30s

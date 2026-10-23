@@ -19,6 +19,11 @@ def source_checks(source=HERE):
         ast.parse(path.read_text(), filename=str(path))
     for path in (source / "knowledge").glob("*.py"):
         ast.parse(path.read_text(), filename=str(path))
+    for path in (source / "previews").glob("*.py"):
+        ast.parse(path.read_text(), filename=str(path))
+    preview = yaml.safe_load((source / "compose.previews.yaml").read_text())["services"]["t3"]
+    assert all(port.startswith("127.0.0.1:") for port in preview["ports"])
+    assert preview["volumes"] == ["/var/lib/agent-platform/bin/preview:/opt/nas-preview:ro"]
     knowledge = json.loads((source / "knowledge/sources.json").read_text())["sources"]
     assert len({s["id"] for s in knowledge}) == len(knowledge), "Duplicate knowledge source"
     assert all(s["type"] in {"files", "repo"} and s["include"] for s in knowledge)

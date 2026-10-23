@@ -134,7 +134,9 @@ Never copy credentials or agent state into that source tree.
 
    Preserve the optional OpenCode service by also passing the documented
    `--with-opencode` and password-file arguments if it is enabled. Retired
-   Hermes is never included in new stack deployments.
+   Hermes is never included in new stack deployments. Once private preview slots
+   are provisioned, also pass `--with-previews` on every replacement so their
+   ports, DNS and external backend networks remain configured.
 
 5. In an idle CI maintenance window, rebuild/redeploy the runner from this source:
 
@@ -350,15 +352,13 @@ bridge and links its instructions to the reviewed policy. It preserves existing
 Codex settings and authentication, and rejects instruction-file collisions.
 Existing Codex configurations need their Brain integration checked separately.
 
-New NAS threads default to separate worktrees. Dealpipe's NAS project has a
-manual **Install NAS dependencies** action, running
-`agent-workload run --queue-timeout 1800 --timeout 1800 -- bun install --frozen-lockfile`.
-Its desktop setup script is not imported: that script requires a development
-`.env` and Docker-managed per-worktree Supabase/Redis, while the agent container
-has no Docker socket. Full-stack Dealpipe previews require a separate adaptation;
-do not silently substitute `/workspace/.dealpipe-testing.env`, copy production
-settings, or grant host Docker access. Repository access and model/tool execution
-alone do not establish application integration readiness.
+New NAS threads default to separate worktrees. Private Dealpipe previews use the
+operator-provisioned development backends described in
+[previews/README.md](previews/README.md). The NAS launcher claims one of two
+persistent backend slots per checkout, installs locked dependencies and initializes
+only that slot from canonical migrations/seeds. It never retargets the sanitized
+testing stack or mounts a Docker socket. The normal desktop worktree hook still
+requires Docker and must not be imported as the NAS setup command.
 
 Generate a fresh one-time pairing link **when the Mac is ready**, in the T3
 container as UID 1100, with `t3 pair` (see `t3 pair --help` for the public address

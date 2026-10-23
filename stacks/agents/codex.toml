@@ -1,0 +1,4 @@
+# Initial NAS configuration. Authentication is installed separately at runtime.
+[mcp_servers.shared-brain]
+command = "python3"
+args = ["/usr/local/lib/agent-brain.py", "bridge"]

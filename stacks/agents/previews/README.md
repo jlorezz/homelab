@@ -117,7 +117,8 @@ No NAS reboot was performed during this setup.
 ## Verified rollout: 2026-10-23
 
 Slot 1 belongs to `/workspace/dealpipe-preview`, branch `feat/nas-private-preview`.
-Dealpipe adapter commit `0643b88a6` adds NAS worktree setup and per-port Tailscale
+Dealpipe [PR #813](https://github.com/dealpipe/dealpipe/pull/813), commit
+`0643b88a6`, adds NAS worktree setup and per-port Tailscale
 cookies. This is a feature-branch implementation, not a merged default-branch
 change. Slot 2 is provisioned and unassigned. T3 has manual **Prepare NAS preview**
 and **Start NAS preview** project actions; automatic issue delivery remains off.
@@ -131,7 +132,23 @@ The NAS itself also reached the verified HTTPS endpoint through the Docker relay
 Stopping the owned preview released its workload lease and returned the public
 preview URL to 502 while T3 stayed healthy. Rerunning setup preserved seeded data.
 
-The Homelab source doctor, 113 unit tests and Nix evaluation passed. Dealpipe lint
+The Homelab source doctor, 114 unit tests and Nix evaluation passed. Dealpipe lint
 passed with eight existing generated-code warnings; commit hooks passed. Full NAS
 reboot and the user's Mac/phone were not tested. Third-party integrations without
 development credentials are outside this verification.
+
+Native npm modules such as Sharp also require the Nix C++ runtime on
+`LD_LIBRARY_PATH`; Chrome's library list alone did not provide it. The image
+now includes `stdenv.cc.cc.lib` in that path. For the already-running image,
+the operator installed a read-only `native-libs` link beside `run.py`, pointing
+to that image's existing GCC library directory. The preview launcher adds it
+when present; no running user shell was interrupted. Commands outside the
+preview launcher on that older image can use
+`export LD_LIBRARY_PATH=/opt/nas-preview/native-libs:$LD_LIBRARY_PATH`.
+Adopt the updated image during the next idle container replacement.
+
+Next can detach a telemetry shutdown child even when telemetry is disabled.
+The launcher acts as a Linux child subreaper and terminates those owned
+reparented descendants before returning; it never selects processes by name.
+The detached-child cleanup check also passed inside the NAS container. The
+complete Dealpipe pre-push checks passed after the native library correction.

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Start this checkout's bounded NAS preview; owns only its own child processes."""
 import argparse
+import ctypes
 import fcntl
 import json
 import os
@@ -62,7 +63,37 @@ def environment(config,root):
     with os.fdopen(fd,'w') as stream:stream.write(content)
     # Retain tools and certificate setup, not unrelated shell credentials.
     clean={k:os.environ[k] for k in ['HOME','PATH','SSL_CERT_FILE','GIT_SSL_CAINFO','LD_LIBRARY_PATH','FONTCONFIG_FILE','TMPDIR'] if k in os.environ}
+    # Existing images contain the Nix C++ runtime but did not expose it to native npm modules.
+    native = HERE/'native-libs'
+    if native.is_dir():
+        clean['LD_LIBRARY_PATH'] = str(native) + ':' + clean.get('LD_LIBRARY_PATH', '')
     return {**clean,**env}
+
+
+def own_detached_children():
+    # Next may detach a shutdown telemetry process even with telemetry disabled.
+    # Linux reparents those descendants to this launcher, so cleanup owns them.
+    libc = ctypes.CDLL(None, use_errno=True)
+    if libc.prctl(36, 1, 0, 0, 0) != 0:  # PR_SET_CHILD_SUBREAPER
+        raise OSError(ctypes.get_errno(), 'Cannot own detached preview children')
+
+
+def stop_adopted_children():
+    children_file = Path(f'/proc/self/task/{os.getpid()}/children')
+    # Leave room inside the workload guard's two-second termination grace.
+    deadline = time.monotonic() + 0.25
+    while True:
+        children = [int(pid) for pid in children_file.read_text().split()]
+        if not children:
+            return
+        for pid in children:
+            # These PIDs come from the kernel's own-child list, never name matching.
+            try:
+                os.kill(pid, signal.SIGTERM if time.monotonic() < deadline else signal.SIGKILL)
+                os.waitpid(pid, os.WNOHANG)
+            except (ProcessLookupError, ChildProcessError):
+                pass
+        time.sleep(0.05)
 
 
 def main():
@@ -97,6 +128,7 @@ def main():
         receipt.write_text(json.dumps({'worktree':str(root),'commit':subprocess.check_output(['git','rev-parse','HEAD'],cwd=root,text=True).strip(),'initialized_at':time.time()}));receipt.chmod(0o600)
         print('Canonical migrations and development seeds applied only to this slot.');return
     if not (STATE/f"{config['slot']}-initialized.json").exists():raise RuntimeError('Run nas-preview setup first.')
+    own_detached_children()
     children=[]
     def stop(signum=None,frame=None):
         for child in children:
@@ -109,6 +141,7 @@ def main():
                 try:child.kill()
                 except ProcessLookupError:pass
                 child.wait()
+        stop_adopted_children()
         if signum is not None:raise SystemExit(128+signum)
     for sig in (signal.SIGINT,signal.SIGTERM):signal.signal(sig,stop)
     try:

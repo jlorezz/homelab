@@ -8,7 +8,7 @@ let
   # T3 downloads its pinned Chrome binary into the persistent home. Supply its
   # ELF loader, libraries and fonts declaratively; the worker cannot apt install.
   browserLibraries = with pkgs; [
-    glibc nss nspr glib atk at-spi2-atk at-spi2-core dbus
+    glibc stdenv.cc.cc.lib nss nspr glib atk at-spi2-atk at-spi2-core dbus
     libx11 libxcb libxcomposite libxdamage
     libxext libxfixes libxrandr
     libxkbcommon libgbm alsa-lib expat fontconfig systemdLibs

@@ -1,6 +1,8 @@
 import importlib.util
 import json
 import os
+import subprocess
+import sys
 from pathlib import Path
 import tempfile
 import unittest
@@ -39,3 +41,17 @@ class PreviewSlotTests(unittest.TestCase):
         with patch.dict(os.environ,{'STRIPE_SECRET_KEY':'do-not-copy','SUPABASE_ACCESS_TOKEN':'do-not-copy'}):env=preview.environment(config,self.root)
         self.assertNotIn('STRIPE_SECRET_KEY',env);self.assertNotIn('SUPABASE_ACCESS_TOKEN',env)
         self.assertEqual((self.root/'.env').stat().st_mode & 0o777,0o600)
+
+    @unittest.skipUnless(sys.platform == 'linux', 'NAS child ownership uses Linux subreapers')
+    def test_detached_descendant_is_owned_and_cleaned_up(self):
+        script = """
+import importlib.util, pathlib, subprocess, sys, time
+spec=importlib.util.spec_from_file_location('preview', sys.argv[1])
+preview=importlib.util.module_from_spec(spec);spec.loader.exec_module(preview)
+preview.own_detached_children()
+child=subprocess.Popen([sys.executable, '-c', "import subprocess,sys; subprocess.Popen([sys.executable,'-c','import time;time.sleep(60)'],start_new_session=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)"])
+child.wait()
+preview.stop_adopted_children()
+assert not pathlib.Path(f'/proc/self/task/{__import__("os").getpid()}/children').read_text().strip()
+"""
+        subprocess.run([sys.executable, '-c', script, str(Path(preview.__file__))], check=True, timeout=8)

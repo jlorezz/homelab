@@ -69,6 +69,13 @@ exclusive admission and wait for all CI lanes. It is not a sandbox
 or a provider spending limit. Record actual spend when available, otherwise mark
 it unknown. Provider spending caps are administered at the provider.
 
+Never remove, replace or add labels on production CI runners to route
+diagnostics or canaries; use a separately registered canary runner. GitHub can
+leave a job queued forever when its label disappears, even after restoration.
+If a human-approved drain is unavoidable, first confirm no queued or running job
+targets those labels, then after restoring them run
+`stacks/github-runner/queue-watchdog.py` and redispatch what it reports.
+
 The reviewed policy and skills under `/opt/agent-policy` are read-only deployment
 artifacts. Propose changes in the homelab repository. Never install or update
 skills, plugins, or MCP integrations as a side effect of an unrelated task.

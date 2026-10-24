@@ -10,6 +10,11 @@ import time
 sys.path.insert(0, "/usr/local/lib/agent-platform")
 from workload import process_identity
 from custody import claim, verify_worker
+try:
+    from network_reaper import reap_best_effort
+except ImportError:  # Socket-free deploy/preview images do not ship engine hygiene.
+    def reap_best_effort(stage):
+        return
 
 
 def worker_ancestor():
@@ -38,13 +43,18 @@ def main():
         else:
             raise RuntimeError("Unknown job hook stage")
         print("CI kernel admission verified")
+        reap_best_effort(sys.argv[1])
         return
     directory = Path("/tmp/agent-ci-leases")
     directory.mkdir(mode=0o700, exist_ok=True)
     ready = directory / f"{pid}-{identity}.ready"
     stop = directory / f"{pid}-{identity}.stop"
     if sys.argv[1] == "completed":
-        stop.touch(mode=0o600)
+        # Still inside this job's admission: nothing else uses the lane engine.
+        try:
+            reap_best_effort("completed")
+        finally:
+            stop.touch(mode=0o600)
         return
     budget = 1800  # Same pilot queue admission budget as agent-workload.
     # Legacy/unconfigured images remain globally exclusive. Shared admission
@@ -60,6 +70,8 @@ def main():
     while time.monotonic() < deadline:
         if ready.is_file():
             print("CI admission acquired")
+            # Leftovers of a lost or cancelled previous job on this lane.
+            reap_best_effort("started")
             return
         if child.poll() is not None:
             raise RuntimeError("Workload lease failed; job must not start")

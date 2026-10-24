@@ -17,6 +17,7 @@ in {
   browser = { inherit (c.systemd.user.services.docker-browser)
     environment restartIfChanged stopIfChanged; };
   daemon = c.qnoxslab.githubRunnerCI2.daemonSettings;
+  mainDaemon = c.virtualisation.docker.rootless.daemon.settings;
   wrapper = c.qnoxslab.githubRunnerCI2.namespaceSetupScript;
   launcher = c.qnoxslab.githubRunnerCI2.launcherScript;
 }'''
@@ -44,6 +45,8 @@ assert daemon['data-root'] == '/var/lib/dealpipe-ci/docker'
 assert daemon['exec-root'] == '/run/user/1102/dealpipe-ci2/exec'
 assert daemon['hosts'] == ['unix:///run/user/1102/dealpipe-ci2/docker.sock']
 assert daemon['cgroup-parent'] == 'dealpipe-ci2.slice'
+assert daemon['default-address-pools'] == [{'base': '10.203.0.0/16', 'size': 24}]
+assert result['mainDaemon']['default-address-pools'] == [{'base': '10.201.0.0/16', 'size': 24}]
 wrapper = result['wrapper']
 assert '_DOCKERD_ROOTLESS_CHILD:-' in wrapper
 assert '/proc/self/ns/$ns' in wrapper and '/proc/1/' not in wrapper

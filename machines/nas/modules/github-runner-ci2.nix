@@ -66,6 +66,7 @@ let
     "hosts" = [ "unix:///run/user/1102/dealpipe-ci2/docker.sock" ];
     "exec-opts" = [ "native.cgroupdriver=systemd" ];
     "cgroup-parent" = "dealpipe-ci2.slice";
+    "default-address-pools" = [ { base = "10.203.0.0/16"; size = 24; } ];
     "dns" = [ "1.1.1.1" "9.9.9.9" ];
     "log-driver" = "local";
     "log-opts" = { "max-size" = "10m"; "max-file" = "3"; };

@@ -178,7 +178,7 @@ class CanaryTests(unittest.TestCase):
                                ('--network', 'host'), ('--user', '0:0')]:
                 self.assertEqual(command[command.index(key)+1], value)
             self.assertIn('--init', command)
-            self.assertEqual(command.count('--env'), 2 if command is temporary else 10)
+            self.assertEqual(command.count('--env'), 2 if command is temporary else 11)
             self.assertFalse(any('registration-token:' in a or 'github-token' in a for a in command))
         self.assertEqual(temporary.count('--mount'), 2)
         self.assertNotIn('docker.sock', ' '.join(temporary))
@@ -188,6 +188,7 @@ class CanaryTests(unittest.TestCase):
         self.assertIn('AGENT_CI_PROFILE=ci2', permanent)
         self.assertIn('AGENT_CI_EXCLUSIVE=0', permanent)
         self.assertIn('AGENT_CI_EXPIRED_POLICY_FALLBACK=1', permanent)
+        self.assertIn('AGENT_CI_NETWORK_HYGIENE=1', permanent)
         self.assertLess(m.REGISTER.index('chown 0:0 /runner'), m.REGISTER.index('./config.sh'))
         self.assertLess(m.REGISTER.index('chmod 700 /runner'), m.REGISTER.index('./config.sh'))
         self.assertIn('AGENT_CI_ENGINE_LOCK=/run/ci-engine.lock', permanent)

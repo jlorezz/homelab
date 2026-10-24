@@ -31,6 +31,7 @@ RUN gcc -shared -fPIC -pthread -O2 -Wall -Wextra -Werror -o /usr/local/lib/agent
 # Applies across runner auto-updates; constructor is inert for all other executables.
 ENV LD_PRELOAD=/usr/local/lib/agent-platform/worker-custody.so
 COPY job-hook.py /usr/local/lib/agent-platform/job-hook.py
+COPY network_reaper.py /usr/local/lib/agent-platform/network_reaper.py
 RUN printf '#!/bin/bash\nexec python3 /usr/local/lib/agent-platform/job-hook.py started\n' > /usr/local/bin/ci-job-started.sh \
     && printf '#!/bin/bash\nexec python3 /usr/local/lib/agent-platform/job-hook.py completed\n' > /usr/local/bin/ci-job-completed.sh \
     && chmod 755 /usr/local/bin/ci-job-started.sh /usr/local/bin/ci-job-completed.sh

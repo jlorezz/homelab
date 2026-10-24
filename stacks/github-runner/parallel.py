@@ -82,6 +82,7 @@ def hooks(lane, profile, engine=None):
                AGENT_CI_EXPIRED_POLICY_FALLBACK='1')
     env.pop('AGENT_CI_ENGINE_LOCK', None)
     env['AGENT_CI_SOCKET_REQUIRED'] = '1' if engine else '0'
+    env['AGENT_CI_NETWORK_HYGIENE'] = '1' if engine else '0'
     if engine:
         volumes.append(f'/var/lib/agent-workloads/{engine}.lock:/run/ci-engine.lock')
         env['AGENT_CI_ENGINE_LOCK'] = '/run/ci-engine.lock'

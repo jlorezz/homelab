@@ -165,3 +165,49 @@ compare unit hashes before/after, and verify listener/GitHub health and OOM/PSI.
 A stopped replica requires private operator inspection rather than an
 automatic restart. Do not delete retained state until registration cleanup is
 confirmed. No live-host behavior has been validated by the mocked offline tests.
+
+## Missing Bun runtime (additive repair)
+
+The CI image pins X64 Bun **1.3.11**, matching Dealpipe development
+[`packageManager` at `9b31e97`](https://github.com/dealpipe/dealpipe/blob/9b31e97d47859fad51877c24000b343e9a0d088f/package.json). The [official release](https://github.com/oven-sh/bun/releases/tag/bun-v1.3.11)
+[asset metadata](https://api.github.com/repos/oven-sh/bun/releases/tags/bun-v1.3.11)
+identifies `bun-linux-x64.zip` with archive SHA-256
+`8611ba935af886f05a6f38740a15160326c15e5d5d07adef966130b4493607ed`.
+The Dockerfile verifies that archive before reading only `bun-linux-x64/bun`,
+stores the public binary at `/opt/ci-runtime/bun`, generates and checks its
+**binary** digest in `/opt/ci-runtime/bun.sha256`, then checks the version.
+Track the application's `packageManager` when rebuilding; this fixed pin does
+not solve future requested-version changes. The runner base pin is unchanged.
+
+Before Listener starts, `runtime_bootstrap.py` verifies the image binary and seeds
+only a missing `$HOME/.bun/bin/bun`. It preserves every existing executable,
+including other legitimate versions; the workflow's setup action owns version
+changes. No cache binary is executed by the helper. The reproduced static-2
+failure was a restored setup-bun cache followed by missing `/home/ci/.bun/bin/bun`
+([run attempt 2](https://github.com/dealpipe/dealpipe/actions/runs/40091909824/attempts/2)).
+The archive-path cause remains **unverified**.
+
+An operator may repair an existing home additively without restarting its
+Listener. First obtain the public binary, binary digest and reviewed helper from
+the newly built reviewed image (or the official checksum-verified archive).
+Never use an arbitrary cache binary as the source. Run as the home owner:
+**UID1102 on the host**, corresponding to UID0 inside the rootless worker.
+Example, with SOURCE and BINARY_DIGEST set to that verified public artifact:
+
+```sh
+python3 stacks/github-runner/runtime_bootstrap.py \
+  --home /var/lib/dealpipe-ci/static-2/home \
+  --source "$SOURCE" --sha256 "$BINARY_DIGEST"
+# Review dry-run output; repeat the same command with --apply to publish.
+```
+
+Home must already exist, belong to the current EUID and be private (0700).
+Ancestors cannot be symlinks or unsafely writable; root-owned sticky temporary
+directories may be traversed. Existing `.bun` and `bin` must be real directories,
+owned by the current EUID without group/world write (0755 is accepted).
+The helper publishes with an atomic no-replace hardlink and removes only its own
+temporary file; a concurrent installer wins. Symlinks and nonexecutable destination
+files are refused for operator inspection. There is no recursive chown, cache
+purge, home deletion or registration-state change. Repair/build/activation and
+live CI validation require the parent/operator's separate runtime work; source
+tests do not prove that the setup action or restored cache will succeed.

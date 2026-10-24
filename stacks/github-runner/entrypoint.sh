@@ -1,5 +1,9 @@
 #!/bin/bash
 set -euo pipefail
+# Seed only a missing private-home runtime; setup-bun owns requested-version changes.
+python3 /usr/local/lib/agent-platform/runtime_bootstrap.py \
+  --home "$HOME" --source /opt/ci-runtime/bun \
+  --sha256 "$(cat /opt/ci-runtime/bun.sha256)" --apply
 # Keep fetched objects and refs durable across an unclean NAS shutdown.
 git config --global core.fsync committed,reference
 git config --global core.fsyncMethod fsync

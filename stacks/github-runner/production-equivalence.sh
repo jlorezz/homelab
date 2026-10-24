@@ -15,16 +15,16 @@ git archive "$base" | tar -x -C "$tmp"
 for side in before after; do
   source=$root
   if [ "$side" = before ]; then source=$tmp; fi
-  nix eval --offline --impure --raw --expr "
-    let f = builtins.getFlake \"path:$source\";
+  RUNNER_EQ_SOURCE="path:$source" nix eval --offline --impure --raw --expr '
+    let f = builtins.getFlake (builtins.getEnv "RUNNER_EQ_SOURCE");
         baseSystem = f.nixosConfigurations.nas;
         hasCapacity = baseSystem.options.qnoxslab ? githubRunnerCapacity;
         system = baseSystem.extendModules { modules = [
           ({ lib, ... }: {
             qnoxslab.githubDeploymentRunners = {
               enable = lib.mkForce true;
-              environments = lib.mkForce [ \"production\" ];
-              image = lib.mkForce \"sha256:$(printf '%064d' 0)\";
+              environments = lib.mkForce [ "production" ];
+              image = lib.mkForce "sha256:0000000000000000000000000000000000000000000000000000000000000000";
             };
           } // lib.optionalAttrs hasCapacity {
             qnoxslab.githubRunnerCapacity = {
@@ -35,8 +35,8 @@ for side in before after; do
               measuredCpuPercent = 3200;
             };
           }) ]; };
-    in system.config.systemd.units.\"dealpipe-deploy-production.service\".text
-  " > "$out/production-$side.service"
+    in system.config.systemd.units."dealpipe-deploy-production.service".text
+  ' > "$out/production-$side.service"
 done
 cmp "$out/production-before.service" "$out/production-after.service"
 echo 'Evaluated production unit: byte-identical (synthetic equal inputs). Live drift still requires operator verification.'

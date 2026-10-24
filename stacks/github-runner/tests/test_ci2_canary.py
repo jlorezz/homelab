@@ -139,7 +139,8 @@ class CanaryTests(unittest.TestCase):
             self.assertEqual(kwargs['stdout'], subprocess.DEVNULL)
             data = dict(agentName='wrong' if self.bad_registration else m.NAME,
                         gitHubUrl='https://github.com/dealpipe/dealpipe', workFolder=m.WORK)
-            (self.root / 'runner/.runner').write_text(json.dumps(data))
+            # Real .NET runner registration emits a UTF-8 BOM.
+            (self.root / 'runner/.runner').write_text(json.dumps(data), encoding='utf-8-sig')
             (self.root / 'runner/.credentials').write_text('PRIVATE fixture')
         elif args[:2] not in (['container', 'create'], ['container', 'start'], ['container', 'wait']):
             self.fail('Unexpected Docker operation: ' + repr(args))

@@ -156,7 +156,7 @@ def create_args(image, temporary=False):
 
 
 def registered():
-    data = json.loads((ROOT / 'runner/.runner').read_text())
+    data = json.loads((ROOT / 'runner/.runner').read_text(encoding='utf-8-sig'))
     if (data.get('agentName', data.get('runnerName')) != NAME
             or data.get('gitHubUrl') != 'https://github.com/dealpipe/dealpipe'
             or data.get('workFolder') != WORK

@@ -355,6 +355,21 @@ int main(int argc, char **argv) {
                        AGENT_CI_PROFILE='ci2', AGENT_CI_EXPIRED_POLICY_FALLBACK='1')
         self.trigger(b, 'HOOK_FAILED')
 
+    def test_nonfinite_policy_never_admits_with_low_headroom_including_fallback(self):
+        (self.root / 'meminfo').write_text('MemTotal: 48596992 kB\nMemAvailable: 102400 kB\n')
+        for expired in (False, True):
+            for field in ('reserveMiB', 'measuredHeadroomMiB', 'maxConcurrentMiB', 'cpuPercent'):
+                bad = dict(self.data, **{field: float('nan')})
+                if expired:
+                    bad.update(verifiedAt=time.time()-3600, expiresAt=time.time()-1)
+                self.policy.write_text(json.dumps(bad))
+                with self.subTest(expired=expired, field=field):
+                    p = self.start(AGENT_CI_EXPIRED_POLICY_FALLBACK='1')
+                    self.trigger(p, 'HOOK_FAILED')
+                    with workload.lock(self.root / 'heavy.lock', .1):
+                        pass
+        self.assertEqual(list(self.root.glob('lease-*')), [])
+
     def test_expiry_during_engine_wait_releases_shared_lock_before_fallback(self):
         self.data['expiresAt'] = time.time()+.2
         self.policy.write_text(json.dumps(self.data))

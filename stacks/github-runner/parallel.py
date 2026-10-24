@@ -27,6 +27,10 @@ SERVICE_KEYS = {'image', 'restart', 'init', 'user', 'network_mode', 'cpus',
 ENV_KEYS = {'TZ', 'HOME', 'RUNNER_ALLOW_RUNASROOT', 'RUNNER_NAME', 'RUNNER_LABEL',
             'RUNNER_WORK_DIRECTORY', 'AGENT_CI_EXCLUSIVE', 'AGENT_CI_PROFILE',
             'AGENT_CI_ENGINE_LOCK', 'AGENT_CI_SOCKET_REQUIRED', 'AGENT_CI_EXPIRED_POLICY_FALLBACK'}
+HEALTHCHECK = {
+    'test': ['CMD-SHELL', 'test -s /runner/.runner && pgrep -x Runner.Listener >/dev/null'],
+    'interval': '30s', 'timeout': '5s', 'start_period': '120s', 'retries': 3,
+}
 
 
 def validate_service(name, lane):
@@ -35,6 +39,9 @@ def validate_service(name, lane):
     env = lane.get('environment')
     if not isinstance(env, dict) or set(env) - ENV_KEYS:
         raise ValueError('Unsupported worker environment override')
+    if 'healthcheck' in lane and lane['healthcheck'] != HEALTHCHECK:
+        raise ValueError('Only the reviewed listener healthcheck is permitted')
+    lane['healthcheck'] = copy.deepcopy(HEALTHCHECK)
     expected = {'user': '0:0', 'network_mode': 'host', 'init': True,
                 'restart': 'unless-stopped'}
     for key, value in expected.items():

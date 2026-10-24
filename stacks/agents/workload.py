@@ -122,19 +122,25 @@ class ExpiredPolicy(ValueError):
     """Previously valid evidence expired; callers may choose exclusive admission."""
 
 
+def reject_json_constant(_value):
+    raise ValueError('Non-finite JSON number refused')
+
+
 def admission_policy(path, profile, allow_expired=False):
     """No measured defaults: a short-lived operator-supplied policy is mandatory."""
-    policy = json.loads(Path(path).read_text())
+    policy = json.loads(Path(path).read_text(), parse_constant=reject_json_constant)
     now = time.time()
     verified, expiry = policy.get('verifiedAt'), policy.get('expiresAt')
     if (policy.get("enabled") is not True or not policy.get("evidence")
             or type(verified) not in (int, float) or type(expiry) not in (int, float)
+            or not math.isfinite(verified) or not math.isfinite(expiry)
             or not 0 < verified <= now or not verified < expiry <= verified + 86400):
         raise ValueError("CI working-set evidence missing, disabled or invalid")
     if expiry <= now and not allow_expired:
         raise ExpiredPolicy("CI parallel evidence expired")
     limits = policy["profiles"][profile]
-    for value in (limits["memoryMiB"], limits["cpuPercent"], policy["maxConcurrentMiB"]):
+    for value in (limits["memoryMiB"], limits["cpuPercent"], policy["maxConcurrentMiB"],
+                  policy['reserveMiB'], policy['measuredHeadroomMiB'], policy['cpuPercent']):
         if type(value) is not int or value <= 0:
             raise ValueError("Working-set budgets must be positive integers")
     if policy["reserveMiB"] < 11865 or policy["cpuPercent"] > 800:
@@ -192,7 +198,10 @@ def capacity_reservation(directory, policy_path, profile, meminfo, pool, exclusi
                     fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
                 except BlockingIOError:
                     with os.fdopen(os.dup(fd)) as stream:
-                        item = json.load(stream)
+                        item = json.load(stream, parse_constant=reject_json_constant)
+                    if any(type(item.get(k)) is not int or item[k] <= 0
+                           for k in ('memoryMiB', 'cpuPercent')):
+                        raise ValueError('Invalid active CI reservation')
                     used_memory += item["memoryMiB"]
                     used_cpu += item["cpuPercent"]
                 else:

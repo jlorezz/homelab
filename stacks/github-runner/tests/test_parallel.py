@@ -175,6 +175,16 @@ class ParallelTests(unittest.TestCase):
                 self.assertFalse(ready.exists())
                 self.data = saved
 
+    def test_every_policy_budget_rejects_nonfinite_bool_fractional_and_nonpositive_values(self):
+        for field in ('reserveMiB', 'maxConcurrentMiB', 'measuredHeadroomMiB', 'cpuPercent'):
+            for value in (float('nan'), float('inf'), float('-inf'), True, 1.5, 0, -1):
+                bad = dict(self.data, **{field: value})
+                self.policy.write_text(json.dumps(bad))
+                for allow_expired in (False, True):
+                    with self.subTest(field=field, value=value, fallback=allow_expired):
+                        with self.assertRaises(ValueError):
+                            workload.admission_policy(self.policy, 'ci1', allow_expired=allow_expired)
+
     def test_render_keeps_limits_isolates_engine_and_requires_inventory(self):
         original = {'services': {}}
         for name, state in [('runner', ''), ('browser', '/browser'), ('static', '/static')]:
@@ -213,6 +223,11 @@ class ParallelTests(unittest.TestCase):
             bad['services']['runner']['environment'][key] = 'forbidden'
             with self.subTest(environment=key), self.assertRaises(ValueError):
                 parallel.render(bad, 'sha256:'+'1'*64, self.policy)
+        bad = copy.deepcopy(original)
+        bad['services']['runner']['healthcheck'] = {'test': ['CMD-SHELL', 'unreviewed command']}
+        with self.assertRaises(ValueError):
+            parallel.render(bad, 'sha256:'+'1'*64, self.policy)
+        self.assertEqual(lane['healthcheck'], parallel.HEALTHCHECK)
         for unsafe in ('/var/run/docker.sock:/host.sock', '/var/lib/dealpipe-deploy/github-token:/secret:ro'):
             bad = copy.deepcopy(original)
             bad['services']['runner']['volumes'].append(unsafe)

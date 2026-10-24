@@ -1,5 +1,18 @@
 # T3 issue delivery
 
+**Current operation (2026-10-23): automatic delivery is off.** Both old desktop
+queues are disabled, and the NAS has no replacement delivery schedules. Start
+new work manually on the NAS; the PC is optional for heavy jobs while it is on.
+Existing desktop history and queue state stay on the PC. This supersedes the
+always-running desktop operating assumption below, not the retained history.
+
+The rest of this document describes the previous queue setup and recovery
+mechanism. Do not activate it as part of NAS onboarding. Any future activation
+needs an explicit request, fresh bindings/baselines and reconciliation with the
+current repository instructions. In particular, Dealpipe's current guide requires
+direct work and separately requested delegation/test changes; the older delivery
+briefs below must not override it. See README.md's **Always-on NAS workspace**.
+
 Move a scoped issue to **Ready** in its existing GitHub project. On its next
 queue tick, the repository coordinator checks the issue, claims it, moves it to
 **In Progress**, and launches one implementation worker in an isolated worktree.

@@ -47,6 +47,13 @@ in
         "f /var/lib/agent-workloads/heavy.lock 0666 root root -"
       ];
 
+    # Compete below the default-weight user/system slices, which contain CI.
+    # Weights on agent-workloads alone cannot prioritize a different parent tree.
+    systemd.slices.agent.sliceConfig = {
+      CPUWeight = 20;
+      IOWeight = 20;
+    };
+
     # Shared ceiling, including build/test subprocesses inside the containers.
     systemd.slices.agent-workloads = {
       description = "Resource budget for Portainer-managed agent containers";
@@ -66,7 +73,35 @@ in
     qnoxslab.tailscaleServe = {
       "3773" = 3773;
       "4096" = 4096;
+      "4101" = 4101; # Private worktree preview slot 1
+      "4102" = 4102; # Private worktree preview slot 2
     };
+
+    # Docker clients cannot dial the host's userspace Tailscale listeners directly.
+    # Carry TLS unchanged from the Docker-only address; no certificate key enters T3.
+    systemd.services.agent-preview-relay = {
+      description = "Private Docker ingress to NAS Tailscale previews";
+      requires = [ "docker.service" ];
+      after = [ "docker.service" "tailscale-serve.service" ];
+      wantedBy = [ "multi-user.target" ];
+      serviceConfig = {
+        ExecStart = "${pkgs.python3}/bin/python3 ${../../../stacks/agents/previews/tailnet-relay.py}";
+        Restart = "on-failure";
+        RestartSec = 5;
+        DynamicUser = true;
+        NoNewPrivileges = true;
+        ProtectSystem = "strict";
+        ProtectHome = true;
+        PrivateTmp = true;
+      };
+    };
+    networking.firewall.extraCommands = ''
+      iptables -C nixos-fw -i br+ -d 172.17.0.1 -p tcp -m multiport --dports 4101,4102 -m comment --comment agent-preview-relay -j nixos-fw-accept 2>/dev/null || \
+        iptables -I nixos-fw 1 -i br+ -d 172.17.0.1 -p tcp -m multiport --dports 4101,4102 -m comment --comment agent-preview-relay -j nixos-fw-accept
+    '';
+    networking.firewall.extraStopCommands = ''
+      iptables -D nixos-fw -i br+ -d 172.17.0.1 -p tcp -m multiport --dports 4101,4102 -m comment --comment agent-preview-relay -j nixos-fw-accept 2>/dev/null || true
+    '';
 
     # Retained state, including retired worker homes, remains backed up.
     services.restic.backups.agents = {
@@ -91,6 +126,7 @@ in
           --exclude=node_modules --exclude=.cache --exclude=.next \
           --exclude=dist --exclude=result --exclude=logs \
           --exclude='*-wal' --exclude='*-shm' \
+          --exclude='/previews/*/db' --exclude='/previews/*/objects' \
           ${lib.escapeShellArg cfg.stateDirectory}/ /var/lib/agent-backup-staging/ || status=$?
         # A file disappearing during a live sync is expected; other errors are not.
         if [ "$status" -ne 0 ] && [ "$status" -ne 24 ]; then exit "$status"; fi

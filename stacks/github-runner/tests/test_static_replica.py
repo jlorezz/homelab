@@ -89,6 +89,8 @@ class ReplicaTests(unittest.TestCase):
         elif args[:2] == ['image', 'inspect']:
             output = json.dumps([{'Config': {}}])
         elif args[0] == 'top':
+            if 'pid' not in args[-1].split(','):
+                return SimpleNamespace(returncode=1, stdout='', stderr="Couldn't find PID field in ps output")
             output = 'Runner.Worker' if args[1] in self.busy else 'Runner.Listener'
         elif args[0] in ('run', 'create'):
             name = args[args.index('--name')+1]

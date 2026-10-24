@@ -236,6 +236,7 @@ class ParallelTests(unittest.TestCase):
         self.assertEqual(lane['environment']['RUNNER_LABEL'], 'dealpipe-nas-ci')
         self.assertEqual(lane['environment']['RUNNER_NAME'], 'dealpipe-nas-ci-2')
         self.assertEqual(lane['cgroup_parent'], 'dealpipe-ci2.slice')
+        self.assertIn('/var/lib/agent-workloads/ci-policy:/run/ci-policy:ro', lane['volumes'])
         self.assertIn('/run/user/1102/dealpipe-ci2/docker.sock:/var/run/docker.sock', lane['volumes'])
         # Docker resolves this source inside CI2's private engine namespace.
         self.assertIn('/var/lib/dealpipe-ci/work:/var/lib/dealpipe-ci/work', lane['volumes'])

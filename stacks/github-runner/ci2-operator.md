@@ -82,7 +82,15 @@ and >=25% physical RAM, maxConcurrentMiB <= H-R, and CPU budget <=800. Baseline
 H=34797 gives H-R=22932 MiB; this is historical headroom, not a working-set proof.
 If two CI reservations do not fit, expansion remains disabled. The source must
 not claim issue acceptance until actual overlap evidence exists. Renewal is an
-operator evidence update; queued/new jobs fail closed after expiry. The root-owned
+operator evidence update. With the rendered fallback enabled, expiry returns new
+jobs to exclusive global admission using the last validated profile and fresh live
+headroom gates. This preserves serial CI availability while preventing unrenewed
+parallel operation; missing, disabled or malformed policy still fails closed. A
+fallback can wait behind active shared jobs before taking its exclusive lock.
+Renew the evidence to restore parallel admission. Active Workers keep their pinned
+reservation through expiry or policy replacement; completion does not revalidate
+the new policy. Sustained parallel throughput requires evidence renewal and remains
+an operator acceptance gate, rather than a promise made by these source tests. The root-owned
 policy directory `/etc/dealpipe-ci-admission` is mounted read-only as a directory,
 so atomic replacement of its `policy.json` is visible to existing workers. Never
 replace the ledger mutex inode or mount a single policy file that pins an old inode. Active leases

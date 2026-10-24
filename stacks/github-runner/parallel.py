@@ -26,7 +26,7 @@ SERVICE_KEYS = {'image', 'restart', 'init', 'user', 'network_mode', 'cpus',
                 'volumes', 'environment', 'container_name', 'labels'}
 ENV_KEYS = {'TZ', 'HOME', 'RUNNER_ALLOW_RUNASROOT', 'RUNNER_NAME', 'RUNNER_LABEL',
             'RUNNER_WORK_DIRECTORY', 'AGENT_CI_EXCLUSIVE', 'AGENT_CI_PROFILE',
-            'AGENT_CI_ENGINE_LOCK', 'AGENT_CI_SOCKET_REQUIRED'}
+            'AGENT_CI_ENGINE_LOCK', 'AGENT_CI_SOCKET_REQUIRED', 'AGENT_CI_EXPIRED_POLICY_FALLBACK'}
 
 
 def validate_service(name, lane):
@@ -71,7 +71,8 @@ def hooks(lane, profile, engine=None):
                    '/ci-2.lock:', ':/run/ci-admission', ':/run/ci-policy', ':/run/ci-pool'))]
     volumes.extend(['/var/lib/agent-workloads/heavy.lock:/run/agent-workload.lock', *ADMISSION])
     env = lane['environment']
-    env.update(AGENT_CI_EXCLUSIVE='0', AGENT_CI_PROFILE=profile)
+    env.update(AGENT_CI_EXCLUSIVE='0', AGENT_CI_PROFILE=profile,
+               AGENT_CI_EXPIRED_POLICY_FALLBACK='1')
     env.pop('AGENT_CI_ENGINE_LOCK', None)
     env['AGENT_CI_SOCKET_REQUIRED'] = '1' if engine else '0'
     if engine:

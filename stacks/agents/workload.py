@@ -118,14 +118,21 @@ def run_command(command, lock_path, queue_timeout, timeout, receipt=None):
     return result["exit_code"] if result["exit_code"] >= 0 else 128 - result["exit_code"]
 
 
-def admission_policy(path, profile):
+class ExpiredPolicy(ValueError):
+    """Previously valid evidence expired; callers may choose exclusive admission."""
+
+
+def admission_policy(path, profile, allow_expired=False):
     """No measured defaults: a short-lived operator-supplied policy is mandatory."""
     policy = json.loads(Path(path).read_text())
     now = time.time()
+    verified, expiry = policy.get('verifiedAt'), policy.get('expiresAt')
     if (policy.get("enabled") is not True or not policy.get("evidence")
-            or not now - 86400 <= policy["verifiedAt"] <= now
-            or not now < policy["expiresAt"] <= policy["verifiedAt"] + 86400):
-        raise ValueError("CI working-set evidence missing, disabled or stale")
+            or type(verified) not in (int, float) or type(expiry) not in (int, float)
+            or not 0 < verified <= now or not verified < expiry <= verified + 86400):
+        raise ValueError("CI working-set evidence missing, disabled or invalid")
+    if expiry <= now and not allow_expired:
+        raise ExpiredPolicy("CI parallel evidence expired")
     limits = policy["profiles"][profile]
     for value in (limits["memoryMiB"], limits["cpuPercent"], policy["maxConcurrentMiB"]):
         if type(value) is not int or value <= 0:
@@ -157,7 +164,7 @@ def committed_memory_mib(pool):
 
 
 @contextmanager
-def capacity_reservation(directory, policy_path, profile, meminfo, pool):
+def capacity_reservation(directory, policy_path, profile, meminfo, pool, exclusive=False):
     """Serialize reservations; kernel-held file locks survive namespaces, not exits.
 
     Committed usage plus FULL live reservations deliberately double counts active
@@ -166,7 +173,7 @@ def capacity_reservation(directory, policy_path, profile, meminfo, pool):
     """
     directory, pool = Path(directory), Path(pool)
     with lock(directory / "mutex.lock", 1):
-        policy, limits = admission_policy(policy_path, profile)
+        policy, limits = admission_policy(policy_path, profile, allow_expired=exclusive)
         memory = dict(line.replace(":", "").split()[:2] for line in Path(meminfo).read_text().splitlines())
         total = math.ceil(int(memory["MemTotal"]) / 1024)
         available = int(memory["MemAvailable"]) // 1024
@@ -194,6 +201,8 @@ def capacity_reservation(directory, policy_path, profile, meminfo, pool):
                 os.close(fd)
         requested = used_memory + limits["memoryMiB"]
         current = committed_memory_mib(pool)
+        if exclusive and used_memory:
+            raise ValueError('Exclusive fallback encountered an active reservation')
         if (requested > policy["maxConcurrentMiB"]
                 or available - requested < policy["reserveMiB"]
                 or current + requested > 32768
@@ -202,7 +211,7 @@ def capacity_reservation(directory, policy_path, profile, meminfo, pool):
         fd, name = tempfile.mkstemp(prefix="lease-", dir=directory)
         try:
             fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            os.write(fd, json.dumps(limits).encode())
+            os.write(fd, json.dumps(dict(limits, _profile=profile, _exclusive=exclusive)).encode())
         except BaseException:
             os.close(fd)
             Path(name).unlink()

@@ -15,7 +15,7 @@ from workload import admission_policy
 
 ADMISSION = [
     '/var/lib/agent-workloads/ci-admission:/run/ci-admission',
-    '/etc/dealpipe-ci-admission:/run/ci-policy:ro',
+    '/var/lib/agent-workloads/ci-policy:/run/ci-policy:ro',
     '/sys/fs/cgroup/user.slice/user-1102.slice:/run/ci-pool:ro',
 ]
 

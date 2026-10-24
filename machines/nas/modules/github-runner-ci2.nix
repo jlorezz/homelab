@@ -156,7 +156,7 @@ in {
       "d /var/lib/dealpipe-ci/ci2/runner 0700 dealpipe-ci dealpipe-ci -"
       "d /var/lib/dealpipe-ci/ci2/home 0700 dealpipe-ci dealpipe-ci -"
       "d /var/lib/dealpipe-ci/ci2/work 0700 dealpipe-ci dealpipe-ci -"
-      "d /etc/dealpipe-ci-admission 0755 root root -"
+      "d /var/lib/agent-workloads/ci-policy 0755 root root -"
       "d /var/lib/agent-workloads/ci-admission 0700 dealpipe-ci dealpipe-ci -"
       "f /var/lib/agent-workloads/ci-admission/mutex.lock 0600 dealpipe-ci dealpipe-ci -"
       "f /var/lib/agent-workloads/ci-main.lock 0666 root root -"

@@ -151,8 +151,12 @@ Renew the evidence to restore parallel admission. Active Workers keep their pinn
 reservation through expiry or policy replacement; completion does not revalidate
 the new policy. Sustained parallel throughput requires evidence renewal and remains
 an operator acceptance gate, rather than a promise made by these source tests. The root-owned
-policy directory `/etc/dealpipe-ci-admission` is mounted read-only as a directory,
-so atomic replacement of its `policy.json` is visible to existing workers. Never
+policy directory `/var/lib/agent-workloads/ci-policy` is mounted read-only as a directory,
+so atomic replacement of its `policy.json` is visible to existing workers.
+Keep this runtime policy under the existing workload directory. RootlessKit
+copy-up of `/etc` snapshots top-level entries at daemon startup, so a newly
+created top-level `/etc` directory would be missing from an existing engine.
+The workload directory is shared live and avoids restarting established engines. Never
 replace the ledger mutex inode or mount a single policy file that pins an old inode. Active leases
 retain their reservation until completion and are not killed on expiry.
 

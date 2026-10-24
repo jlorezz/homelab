@@ -6,7 +6,7 @@ import json
 import os
 from pathlib import Path
 import socket
-import sys
+import struct
 import time
 
 from workload import admission_policy, capacity_reservation, lock, process_identity
@@ -31,12 +31,14 @@ def configuration():
                 pool=env.get("AGENT_CI_POOL", "/run/ci-pool"))
 
 
-def claim(channel):
+def claim(owner):
     cfg = configuration()
-    owner = os.getppid()
     identity = process_identity(owner)
     if identity is None:
         raise RuntimeError("Worker exited before admission")
+    endpoint = os.environ.get('AGENT_CI_CUSTODY_ENDPOINT', '')
+    if not endpoint.startswith(f'ci-custody-{owner}-') or len(endpoint) > 79:
+        raise RuntimeError("Worker custody endpoint missing")
     deadline = time.monotonic() + cfg['budget']
 
     def remaining():
@@ -46,9 +48,16 @@ def claim(channel):
         return result
 
     with ExitStack() as stack:
-        fds = [stack.enter_context(lock(cfg['global_lock'], remaining(), shared=True))]
+        def acquire(path, shared=False):
+            while True:
+                try:
+                    return stack.enter_context(lock(path, min(.1, remaining()), shared=shared))
+                except TimeoutError:
+                    remaining()
+
+        fds = [acquire(cfg['global_lock'], shared=True)]
         if cfg['engine']:
-            fds.append(stack.enter_context(lock(cfg['engine'], remaining())))
+            fds.append(acquire(cfg['engine']))
         while True:
             remaining()
             try:
@@ -57,13 +66,23 @@ def claim(channel):
                 break
             except TimeoutError:
                 time.sleep(min(.1, remaining()))
-        channel.settimeout(remaining())
-        if channel.sendmsg([b'CIC1'], [(socket.SOL_SOCKET, socket.SCM_RIGHTS, array('i', fds))]) != 4:
-            raise RuntimeError("Incomplete custody transfer")
-        if channel.recv(16) != b'ACK1':
-            raise RuntimeError("Worker did not confirm custody")
-        # ExitStack closes only our references. SCM_RIGHTS transferred the same
-        # open file descriptions; flock ownership now lasts until Worker exit.
+        remaining()
+        with socket.socket(socket.AF_UNIX, socket.SOCK_SEQPACKET) as channel:
+            channel.settimeout(min(2, remaining()))
+            channel.connect('\0' + endpoint)
+            peer, uid, _ = struct.unpack('3i', channel.getsockopt(
+                socket.SOL_SOCKET, socket.SO_PEERCRED, struct.calcsize('3i')))
+            if peer != owner or uid != os.getuid() or process_identity(owner) != identity:
+                raise RuntimeError("Actual Worker custody peer required")
+            if channel.sendmsg([b'CIC1'], [(socket.SOL_SOCKET, socket.SCM_RIGHTS, array('i', fds))]) != 4:
+                raise RuntimeError("Incomplete custody transfer")
+            if channel.recv(16) != b'ACK1':
+                raise RuntimeError("Worker did not confirm custody")
+            # The ACK proves receiver retention; kernel inode/flock proof below
+            # must also pass before the started hook permits any job steps.
+            verify_worker(owner)
+        # ExitStack closes only our references. The Worker retains the same open
+        # file descriptions through process exit, even after the receiver returns.
 
 
 def verify_worker(pid):
@@ -103,13 +122,3 @@ def verify_worker(pid):
                             reservations.append(stat.st_ino)
     if len(found) != len(expected) or len(set(reservations)) != 1 or process_identity(pid) != identity:
         raise RuntimeError("Worker kernel admission custody missing")
-
-
-if __name__ == '__main__':
-    try:
-        with socket.socket(fileno=int(sys.argv[1])) as channel:
-            claim(channel)
-    except Exception:
-        # Protocol and policy errors must not dump environment/arguments into logs.
-        print('CI admission claimer failed', file=sys.stderr)
-        raise SystemExit(1)

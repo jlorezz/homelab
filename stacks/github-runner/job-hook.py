@@ -9,7 +9,7 @@ import time
 
 sys.path.insert(0, "/usr/local/lib/agent-platform")
 from workload import process_identity
-from custody import verify_worker
+from custody import claim, verify_worker
 
 
 def worker_ancestor():
@@ -29,8 +29,14 @@ def main():
     if identity is None:
         raise RuntimeError("Runner.Worker has exited")
     if "AGENT_CI_PROFILE" in os.environ:
-        # Measured lanes never fall back to a detached lease, including completion.
-        verify_worker(pid)
+        # Queue only after managed Worker startup has consumed the JobRequest.
+        # Completion proves continuing custody; it must never reacquire a lease.
+        if sys.argv[1] == "started":
+            claim(pid)
+        elif sys.argv[1] == "completed":
+            verify_worker(pid)
+        else:
+            raise RuntimeError("Unknown job hook stage")
         print("CI kernel admission verified")
         return
     directory = Path("/tmp/agent-ci-leases")

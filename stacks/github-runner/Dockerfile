@@ -15,7 +15,7 @@ COPY entrypoint.sh /usr/local/bin/ci-runner
 COPY workload.py /usr/local/lib/agent-platform/workload.py
 COPY worker-custody.c /tmp/worker-custody.c
 COPY custody.py /usr/local/lib/agent-platform/custody.py
-RUN gcc -shared -fPIC -O2 -Wall -Wextra -Werror -o /usr/local/lib/agent-platform/worker-custody.so /tmp/worker-custody.c \
+RUN gcc -shared -fPIC -pthread -O2 -Wall -Wextra -Werror -o /usr/local/lib/agent-platform/worker-custody.so /tmp/worker-custody.c \
     && rm /tmp/worker-custody.c
 # Applies across runner auto-updates; constructor is inert for all other executables.
 ENV LD_PRELOAD=/usr/local/lib/agent-platform/worker-custody.so

@@ -24,6 +24,9 @@ in
       setSocketVariable = false;
       daemon.settings = {
         "data-root" = "/var/lib/dealpipe-ci/docker";
+        # 256 job networks instead of Docker's ~30 built-in pools; each engine
+        # gets a distinct private range inside its own RootlessKit namespace.
+        "default-address-pools" = [ { base = "10.201.0.0/16"; size = 24; } ];
         "dns" = [ "1.1.1.1" "9.9.9.9" ];
         "log-driver" = "local";
         "log-opts" = { "max-size" = "10m"; "max-file" = "3"; };

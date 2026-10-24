@@ -31,6 +31,7 @@ services:
       TZ: Europe/Berlin
       RUNNER_NAME: dealpipe-nas-ci
       RUNNER_LABEL: dealpipe-nas-ci
+      AGENT_CI_NETWORK_HYGIENE: "1"
 
   # Browser services use their own Supabase project and 278xx ports.
   browser:
@@ -46,6 +47,7 @@ services:
       TZ: Europe/Berlin
       RUNNER_NAME: dealpipe-nas-browser
       RUNNER_LABEL: dealpipe-nas-browser
+      AGENT_CI_NETWORK_HYGIENE: "1"
       RUNNER_WORK_DIRECTORY: /var/lib/dealpipe-ci/browser/work
 
   # No Docker socket: routing, policy, quality, typechecks and unit tests.

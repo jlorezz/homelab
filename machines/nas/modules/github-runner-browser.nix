@@ -29,6 +29,7 @@ in {
         RuntimeDirectoryMode = "0700";
         ExecStart = "${docker}/bin/dockerd-rootless --config-file=${pkgs.writeText "dealpipe-browser-daemon.json" (builtins.toJSON {
           "data-root" = "/var/lib/dealpipe-ci/browser/docker";
+          "default-address-pools" = [ { base = "10.202.0.0/16"; size = 24; } ];
           "dns" = [ "1.1.1.1" "9.9.9.9" ];
           "log-driver" = "local";
           "log-opts" = { "max-size" = "10m"; "max-file" = "3"; };

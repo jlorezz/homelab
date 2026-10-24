@@ -26,7 +26,8 @@ SERVICE_KEYS = {'image', 'restart', 'init', 'user', 'network_mode', 'cpus',
                 'volumes', 'environment', 'container_name', 'labels'}
 ENV_KEYS = {'TZ', 'HOME', 'RUNNER_ALLOW_RUNASROOT', 'RUNNER_NAME', 'RUNNER_LABEL',
             'RUNNER_WORK_DIRECTORY', 'AGENT_CI_EXCLUSIVE', 'AGENT_CI_PROFILE',
-            'AGENT_CI_ENGINE_LOCK', 'AGENT_CI_SOCKET_REQUIRED', 'AGENT_CI_EXPIRED_POLICY_FALLBACK'}
+            'AGENT_CI_ENGINE_LOCK', 'AGENT_CI_SOCKET_REQUIRED', 'AGENT_CI_EXPIRED_POLICY_FALLBACK',
+            'AGENT_CI_NETWORK_HYGIENE'}
 HEALTHCHECK = {
     'test': ['CMD-SHELL', 'test -s /runner/.runner && pgrep -x Runner.Listener >/dev/null'],
     'interval': '30s', 'timeout': '5s', 'start_period': '120s', 'retries': 3,
@@ -82,6 +83,7 @@ def hooks(lane, profile, engine=None):
                AGENT_CI_EXPIRED_POLICY_FALLBACK='1')
     env.pop('AGENT_CI_ENGINE_LOCK', None)
     env['AGENT_CI_SOCKET_REQUIRED'] = '1' if engine else '0'
+    env['AGENT_CI_NETWORK_HYGIENE'] = '1' if engine else '0'
     if engine:
         volumes.append(f'/var/lib/agent-workloads/{engine}.lock:/run/ci-engine.lock')
         env['AGENT_CI_ENGINE_LOCK'] = '/run/ci-engine.lock'

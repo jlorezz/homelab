@@ -96,3 +96,68 @@ both revisions; fixture numbers are not host measurements. Compare the actual
 reconciled host unit too before activation. Missing Nix/store inputs blocks this
 check; text inspection is not evaluated equivalence. No image/container/service
 is started by these offline checks. Operator commands live in the handoff batch.
+
+## First phase: one static replica inside the existing ceiling
+
+`static-replica.py` is a separate, incremental operator helper. It adds **only**
+`dealpipe-ci-static-2-1` (`dealpipe-nas-static-2`, label `dealpipe-nas-static`),
+using the existing UID 1102 rootless engine, original entrypoint and reviewed
+source image ID (default
+`sha256:121de326c9541820ea00f82a924286b5d6f9134d48c66cef1f50064e722ee079`).
+It never pulls an image or changes static-1, other workers, services or NixOS.
+The new container has 8 GiB memory, equal memory+swap, 2 CPUs, 2048 PIDs,
+init and restart `unless-stopped`. Host networking stays inside the existing
+rootless namespace. Browser already has a separate engine; this helper always
+uses `/run/user/1102/docker.sock` and never mounts any engine socket.
+
+Run as CI UID 1102 on the NAS. Resolve the existing Python executable explicitly
+(`python3` is absent from the NAS PATH); no install is needed. Default is read-only:
+
+```bash
+runner_python=/nix/store/lb41b0anx1f98y9y5s9mdv97gjgsq740-python3-3.14.7/bin/python3
+"$runner_python" static-replica.py --expected-image sha256:121de326c9541820ea00f82a924286b5d6f9134d48c66cef1f50064e722ee079
+```
+
+After separately checking production/staging unit hashes, the operator may run
+with `--apply` and supply **one fresh short-lived registration token via stdin**
+from a private input/pipe. Never put tokens in command arguments, shell history,
+logs or evidence. The helper captures configuration output without displaying it;
+the temporary configuration container disables Docker logging. It sends the token
+only over stdin, exports it to `config.sh` and exits after configuration. Persistent
+GitHub runner credentials (not the input token) live in the private runner state.
+The permanent original entrypoint then finds `/runner/.runner`; no registration
+file, controller credential, host home or old runner state is mounted.
+
+Only `/var/lib/dealpipe-ci/static-2/{runner,home,work}` (UID 1102, mode 0700)
+and the **preexisting** `heavy.lock` inode are bound. Both static workers retain
+shared global admission (`AGENT_CI_EXCLUSIVE=0`); this phase does not introduce
+`static.lock`. Production and heavy agent commands retain exclusive `heavy.lock`.
+Only source static-1 must be idle immediately before configuration; other lanes
+can continue. A source job starting after that check is safe because static-1
+is never changed.
+
+The incremental gate requires the existing CI slice to remain exactly 32 GiB /
+8 CPUs with aggregate memory.swap.max = 0, physical RAM >= 32 GiB + max(8 GiB, ceil(MemTotal/4)), and MemAvailable >=
+8 GiB + that reserve. Within the existing aggregate it also requires 8 GiB free
+against the larger of anon+kernel usage and memory.current-file. File cache is
+not added to MemAvailable. CI OOM/kill counters must start at zero and remain
+unchanged through configuration/start. These checks permit two light CI jobs
+within the same aggregate ceiling; they cannot guarantee workload peaks or
+throughput. They **do not bypass the full 62 GiB pool gate** above. Preview and
+staging expansion remain blocked; existing production/staging are untouched.
+
+Existing state is accepted only with this helper's private ownership marker;
+existing containers require its managed label, exact name, mounts, limits and
+configuration. Unknown or partially registered state is never cleared. On
+configuration/start failure cleanup requires the unique creation-attempt label.
+A running permanent replica is always retained on failure: an idle inspection
+cannot prevent a job arriving before a stop. No stop or force-removal of the
+permanent replica is performed. `--rollback` refuses every running replica and
+removes only an already-stopped, exactly owned container, retaining private state.
+If a job may be active, let it finish and use a separately verified operator drain
+before stopping it; this helper does not implement a GitHub admission drain.
+The operator must remove only the exact new GitHub registration if needed,
+compare unit hashes before/after, and verify listener/GitHub health and OOM/PSI.
+A stopped replica requires private operator inspection rather than an
+automatic restart. Do not delete retained state until registration cleanup is
+confirmed. No live-host behavior has been validated by the mocked offline tests.

@@ -13,6 +13,7 @@ def main():
         "Dockerfile": directory.parent / "github-deploy-runner/Dockerfile",
         "entrypoint.sh": directory / "entrypoint.sh",
         "job-hook.py": directory.parent / "github-runner/job-hook.py",
+        "custody.py": directory.parent / "github-runner/custody.py",
         "workload.py": directory.parent / "agents/workload.py",
     }
     with tempfile.TemporaryDirectory(prefix="dealpipe-preview-image-") as context:

@@ -70,7 +70,7 @@ def main():
     require_idle(api, endpoint_id)
     digest = hashlib.sha256()
     context_files = {name: directory / name for name in (
-        "Dockerfile", "entrypoint.sh", "job-hook.py", "custody.py", "worker-custody.c")}
+        "Dockerfile", "entrypoint.sh", "runtime_bootstrap.py", "job-hook.py", "custody.py", "worker-custody.c")}
     context_files["workload.py"] = directory.parent / "agents/workload.py"
     for name, path in context_files.items():
         digest.update(name.encode() + b"\0" + path.read_bytes())

@@ -1,5 +1,9 @@
 # Measured parallel runner capacity
 
+For the actual 12 CPU / 47458 MiB NAS, use the disabled-by-default
+[CI2 next-phase runbook](ci2-operator.md). The older illustrative topology below
+does not fit this NAS and is not its activation procedure.
+
 Definitions only: nothing here activates the NAS. The owning configuration is
 `machines/nas/configuration.nix`. The existing rootless engine and Portainer
 helper remain the CI deployment path. Never duplicate a socket-bearing Compose

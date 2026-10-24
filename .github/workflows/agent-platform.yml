@@ -17,7 +17,6 @@ on:
       - machines/nas/modules/offsite-backup.nix
       - machines/nas/modules/dealpipe-recovery.nix
       - machines/nas/scripts/check-nas-health.py
-      - machines/nas/modules/github-runner.nix
       - machines/nas/modules/github-*.nix
       - flake.nix
       - flake.lock
@@ -74,6 +73,8 @@ jobs:
         run: |
           git fetch --no-tags origin 4bfead617fc26e6d634b1696061729716127822b
           bash stacks/github-runner/production-equivalence.sh 4bfead617fc26e6d634b1696061729716127822b "$RUNNER_TEMP/production-equivalence"
+      - name: Evaluate opt-in CI2 isolation and unchanged parent
+        run: python3 stacks/github-runner/tests/check-ci2-nix.py
       - name: Build and check exact application runtimes
         run: nix build .#agent-runtimes --print-build-logs
       - name: Build development image when requested

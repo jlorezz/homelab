@@ -35,7 +35,19 @@ def main():
         stop.touch(mode=0o600)
         return
     budget = 1800  # Same pilot queue admission budget as agent-workload.
-    admission = [] if os.environ.get("AGENT_CI_EXCLUSIVE") == "1" else ["--shared"]
+    # Legacy/unconfigured images remain globally exclusive. Shared admission
+    # requires an explicit lane configuration, never an implicit new default.
+    admission = ["--shared"] if os.environ.get("AGENT_CI_EXCLUSIVE") == "0" else []
+    profile = os.environ.get("AGENT_CI_PROFILE")
+    if profile:
+        if os.environ.get("AGENT_CI_EXCLUSIVE") != "0":
+            raise RuntimeError("Measured lanes require shared global admission")
+        admission += ["--admission-profile", profile]
+        engine = os.environ.get("AGENT_CI_ENGINE_LOCK")
+        if engine:
+            admission += ["--engine-lock", engine]
+        elif os.environ.get("AGENT_CI_SOCKET_REQUIRED") == "1":
+            raise RuntimeError("Socket-bearing lane requires an engine lock")
     child = subprocess.Popen([
         sys.executable, "/usr/local/lib/agent-platform/workload.py", "lease",
         *admission, "--owner-pid", str(pid), "--owner-identity", identity,
@@ -45,7 +57,7 @@ def main():
     deadline = time.monotonic() + budget + 5
     while time.monotonic() < deadline:
         if ready.is_file():
-            print("Shared CI admission acquired")
+            print("CI admission acquired")
             return
         if child.poll() is not None:
             raise RuntimeError("Workload lease failed; job must not start")

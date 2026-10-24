@@ -2,7 +2,7 @@
 """Coordinate bounded NAS workloads; CI lanes may share admission."""
 
 import argparse
-from contextlib import contextmanager
+from contextlib import contextmanager, ExitStack
 from datetime import datetime, timezone
 import fcntl
 import json
@@ -13,6 +13,7 @@ import signal
 import subprocess
 import sys
 import time
+import tempfile
 
 
 def positive(value):
@@ -117,15 +118,110 @@ def run_command(command, lock_path, queue_timeout, timeout, receipt=None):
     return result["exit_code"] if result["exit_code"] >= 0 else 128 - result["exit_code"]
 
 
+def admission_policy(path, profile):
+    """No measured defaults: a short-lived operator-supplied policy is mandatory."""
+    policy = json.loads(Path(path).read_text())
+    now = time.time()
+    if (policy.get("enabled") is not True or not policy.get("evidence")
+            or not now - 86400 <= policy["verifiedAt"] <= now
+            or not now < policy["expiresAt"] <= policy["verifiedAt"] + 86400):
+        raise ValueError("CI working-set evidence missing, disabled or stale")
+    limits = policy["profiles"][profile]
+    for value in (limits["memoryMiB"], limits["cpuPercent"], policy["maxConcurrentMiB"]):
+        if type(value) is not int or value <= 0:
+            raise ValueError("Working-set budgets must be positive integers")
+    if policy["reserveMiB"] < 11865 or policy["cpuPercent"] > 800:
+        raise ValueError("NAS reserve/CPU budget violated")
+    if policy["maxConcurrentMiB"] > min(32768, policy["measuredHeadroomMiB"] - policy["reserveMiB"]):
+        raise ValueError("Concurrent working sets exceed verified headroom")
+    return policy, limits
+
+
+@contextmanager
+def capacity_reservation(directory, policy_path, profile, meminfo, pool):
+    """Serialize reservations; kernel-held file locks survive namespaces, not exits.
+
+    Current usage plus FULL live reservations deliberately double counts active
+    jobs. Conservative refusal is preferable to claiming reclaimed/cache RAM.
+    The directory and mutex inode are provisioned by the operator, never replaced.
+    """
+    directory, pool = Path(directory), Path(pool)
+    with lock(directory / "mutex.lock", 1):
+        policy, limits = admission_policy(policy_path, profile)
+        memory = dict(line.replace(":", "").split()[:2] for line in Path(meminfo).read_text().splitlines())
+        total = math.ceil(int(memory["MemTotal"]) / 1024)
+        available = int(memory["MemAvailable"]) // 1024
+        if policy["reserveMiB"] < max(11865, math.ceil(total / 4)):
+            raise ValueError("Physical memory reserve violated")
+        if int((pool / "memory.max").read_text()) != 32768 * 1024**2 or int((pool / "memory.swap.max").read_text()) != 0:
+            raise ValueError("CI parent must remain 32 GiB with swap disabled")
+        quota, period = map(int, (pool / "cpu.max").read_text().split())
+        if quota != 8 * period:
+            raise ValueError("CI parent must remain 8 CPUs")
+        used_memory, used_cpu = 0, 0
+        for path in directory.glob("lease-*"):
+            fd = os.open(path, os.O_RDWR | os.O_NOFOLLOW)
+            try:
+                try:
+                    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except BlockingIOError:
+                    with os.fdopen(os.dup(fd)) as stream:
+                        item = json.load(stream)
+                    used_memory += item["memoryMiB"]
+                    used_cpu += item["cpuPercent"]
+                else:
+                    path.unlink()  # Dead holder; no PID namespace assumptions.
+            finally:
+                os.close(fd)
+        requested = used_memory + limits["memoryMiB"]
+        current = math.ceil(int((pool / "memory.current").read_text()) / 1024**2)
+        if (requested > policy["maxConcurrentMiB"]
+                or available - requested < policy["reserveMiB"]
+                or current + requested > 32768
+                or used_cpu + limits["cpuPercent"] > policy["cpuPercent"]):
+            raise TimeoutError("Measured CI working-set admission unavailable")
+        fd, name = tempfile.mkstemp(prefix="lease-", dir=directory)
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            os.write(fd, json.dumps(limits).encode())
+        except BaseException:
+            os.close(fd)
+            Path(name).unlink()
+            raise
+    try:
+        yield
+    finally:
+        # Keep the inode until a later holder prunes it under the mutex.
+        os.close(fd)
+
+
 def lease(args):
-    """CI hook helper: retain the slot only while this exact Runner.Worker lives."""
+    """Retain ALL admission resources while this exact Runner.Worker lives."""
     if process_identity(args.owner_pid) != args.owner_identity:
         return 1
-    with lock(args.lock, args.queue_timeout, shared=args.shared):
+    with ExitStack() as stack:
+        stack.enter_context(lock(args.lock, args.queue_timeout, shared=args.shared))
+        if args.engine_lock:
+            if not args.shared:
+                raise ValueError("Engine admission requires shared global admission")
+            stack.enter_context(lock(args.engine_lock, args.queue_timeout))
+        if args.admission_profile:
+            deadline = time.monotonic() + args.queue_timeout
+            while True:
+                try:
+                    stack.enter_context(capacity_reservation(args.admission_directory, args.admission_policy,
+                                                            args.admission_profile, args.meminfo, args.ci_pool))
+                    break
+                except TimeoutError:
+                    if time.monotonic() >= deadline or process_identity(args.owner_pid) != args.owner_identity:
+                        raise
+                    time.sleep(0.25)
         if process_identity(args.owner_pid) != args.owner_identity:
             return 1
         args.ready.write_text("ready\n")
-        while process_identity(args.owner_pid) == args.owner_identity and not args.stop.exists():
+        # Completed hooks run before Worker exit. Retain all resources through
+        # final runner cleanup; a completion marker is not proof of process exit.
+        while process_identity(args.owner_pid) == args.owner_identity:
             time.sleep(0.25)
     return 0
 
@@ -141,6 +237,12 @@ def main():
     run.add_argument("command", nargs=argparse.REMAINDER)
     hold = sub.add_parser("lease", help=argparse.SUPPRESS)
     hold.add_argument("--shared", action="store_true", help="Bounded CI lanes may overlap; agent commands retain exclusive admission")
+    hold.add_argument("--engine-lock", type=Path)
+    hold.add_argument("--admission-profile")
+    hold.add_argument("--admission-directory", type=Path, default=Path("/run/ci-admission"))
+    hold.add_argument("--admission-policy", type=Path, default=Path("/run/ci-policy/policy.json"))
+    hold.add_argument("--meminfo", type=Path, default=Path("/proc/meminfo"))
+    hold.add_argument("--ci-pool", type=Path, default=Path("/run/ci-pool"))
     hold.add_argument("--owner-pid", type=int, required=True)
     hold.add_argument("--owner-identity", required=True)
     hold.add_argument("--queue-timeout", type=positive, required=True)

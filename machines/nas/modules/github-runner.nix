@@ -5,7 +5,7 @@ let
   capacity = config.qnoxslab.githubRunnerCapacity;
 in
 {
-  imports = [ ./github-runner-capacity.nix ];
+  imports = [ ./github-runner-capacity.nix ./github-runner-ci2.nix ];
   options.qnoxslab.githubRunner.enable = lib.mkEnableOption "dedicated rootless Docker engine for Dealpipe CI";
   config = lib.mkIf cfg.enable {
     users.groups.dealpipe-ci.gid = 1102;

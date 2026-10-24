@@ -31,9 +31,10 @@ stacks). Container memory+swap equals memory; all aggregate slices disable swap.
 CPU ceilings per container may sum above their aggregate CPU ceiling; the aggregate
 ceiling wins. These are limits, not throughput reservations or measured job peaks.
 
-Let H be the minimum of `MemAvailable + sum(memory.current of existing runner
-aggregate cgroups)` at representative non-runner NAS load. Add back existing
-pool usage once, never overlapping cgroups. Let T be MemTotal and
+Let H be the minimum `MemAvailable` at representative NAS load. Do not add
+existing pool usage back: MemAvailable already includes reclaimable cache, and
+adding memory.current can double-count it. Budgeting all pools again is
+conservative; drain jobs first to reduce this double reservation. Let T be MemTotal and
 R >= max(8 GiB, ceil(T/4)). Require:
 
     CI_pool + enabled_preview_pool + enabled_staging_pool

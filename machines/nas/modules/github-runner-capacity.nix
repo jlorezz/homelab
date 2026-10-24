@@ -17,7 +17,7 @@ let
 in {
   options.qnoxslab.githubRunnerCapacity = {
     enable = lib.mkEnableOption "measured runner capacity and separate light-job admission";
-    measuredHeadroomMiB = lib.mkOption { type = lib.types.nullOr lib.types.ints.positive; default = null; description = "UNVERIFIED until step 0: minimum MemAvailable plus current accounted runner-pool usage."; };
+    measuredHeadroomMiB = lib.mkOption { type = lib.types.nullOr lib.types.ints.positive; default = null; description = "UNVERIFIED until step 0: minimum MemAvailable; do not add existing pool usage back."; };
     measuredTotalMiB = lib.mkOption { type = lib.types.nullOr lib.types.ints.positive; default = null; };
     reserveMiB = lib.mkOption { type = lib.types.ints.positive; default = 8192; description = "Reserve at least max(8 GiB, 25 percent of physical RAM)."; };
     measuredCpuPercent = lib.mkOption { type = lib.types.nullOr lib.types.ints.positive; default = null; description = "100 times measured logical CPUs, minus operator reserve."; };

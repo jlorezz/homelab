@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read-only step-0 sampling. Supply ALL existing runner aggregate cgroup paths."""
+"""Read-only step-0 sampling; never add runner usage back to available RAM."""
 import argparse
 from datetime import datetime, timezone
 import json
@@ -14,7 +14,7 @@ parser.add_argument("--interval", type=float, default=5)
 args = parser.parse_args()
 if args.samples < 1 or args.interval < 0:
     parser.error("Invalid sample interval/count")
-# Only non-overlapping aggregate cgroups may be added back to MemAvailable.
+# Record non-overlapping aggregates for evidence only; never add usage back.
 paths = [p.resolve(strict=True) for p in args.cgroup]
 if any(a == b or a in b.parents or b in a.parents for i, a in enumerate(paths) for b in paths[i + 1:]):
     parser.error("Cgroups must be distinct and non-overlapping")
@@ -22,7 +22,9 @@ minimum = None
 for number in range(args.samples):
     mem = {line.split(':')[0]: int(line.split()[1]) for line in Path('/proc/meminfo').read_text().splitlines() if line.startswith(('MemTotal:', 'MemAvailable:'))}
     usage = sum(int((p / 'memory.current').read_text()) for p in paths)
-    headroom = (mem['MemAvailable'] * 1024 + usage) // (1024 * 1024)
+    # MemAvailable already includes reclaimable cache. Adding memory.current
+    # would double-count some pages; use available RAM alone, conservatively.
+    headroom = mem['MemAvailable'] // 1024
     minimum = headroom if minimum is None else min(minimum, headroom)
     if number + 1 < args.samples:
         time.sleep(args.interval)
@@ -34,6 +36,7 @@ print(json.dumps({
     'reserveMiB': max(8192, (total + 3) // 4),
     'measuredCpuPercent': max(0, len(os.sched_getaffinity(0)) - 2) * 100,
     'samples': args.samples,
+    'lastRunnerUsageMiB': usage // (1024 * 1024),
     'cgroups': [str(p) for p in paths],
     'limits': 'Sampled headroom only; repeat at representative NAS load. Reserve two logical CPUs. Peak job memory UNVERIFIED.'
 }, indent=2))

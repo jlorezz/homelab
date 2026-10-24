@@ -31,6 +31,7 @@ test "$(git rev-parse --show-toplevel)" = /etc/nixos/homelab
 test -z "$(git status --porcelain)"
 git remote get-url origin | python3 -c 'import sys; u=sys.stdin.read().strip(); assert u in ("https://github.com/jlorezz/homelab.git", "git@github.com:jlorezz/homelab.git", "ssh://git@github.com/jlorezz/homelab.git"), "Wrong repository; STOP"'
 BASE_COMMIT=$(git rev-parse HEAD)
+test "$BASE_COMMIT" = 4bfead617fc26e6d634b1696061729716127822b || { echo "Host checkout differs from reviewed base; STOP for rebase/review"; exit 1; }
 OLD_SYSTEM=$(readlink -f /run/current-system)
 test -x "$OLD_SYSTEM/bin/switch-to-configuration"
 BATCH=$(mktemp -d /var/tmp/runner-rollout-v2.XXXXXX)
@@ -41,7 +42,7 @@ PROD_FRAGMENT=$(systemctl show dealpipe-deploy-production.service -p FragmentPat
 test -n "$PROD_FRAGMENT"
 cat "$PROD_FRAGMENT" > "$BATCH/production-live-before.service"
 systemctl show dealpipe-deploy-production.service -p DropInPaths --value > "$BATCH/production-dropins-before"
-test ! -s "$BATCH/production-dropins-before" || { echo 'Production has drop-ins: reconcile them before proceeding'; exit 1; }
+test -z "$(cat "$BATCH/production-dropins-before")" || { echo 'Production has drop-ins: reconcile them before proceeding'; exit 1; }
 systemctl show dealpipe-deploy-production.service -p LoadCredential --value
 # Verify the path is github-token:/var/lib/dealpipe-deploy/github-token.
 # If different, STOP; use the existing path in the literal config diff below.
@@ -59,7 +60,7 @@ test "$(printf '%s\n' "$STAGE_ID" | wc -l)" -eq 1 && test -n "$STAGE_ID"
 DEPLOY_IMAGE=$(sudo docker --host unix:///var/run/docker.sock inspect --format '{{.Image}}' "$PROD_ID")
 test "$DEPLOY_IMAGE" = "$(sudo docker --host unix:///var/run/docker.sock inspect --format '{{.Image}}' "$STAGE_ID")"
 printf '%s\n' "$DEPLOY_IMAGE" > "$BATCH/deploy-image"
-sudo stat -c '%a %U %G' /var/lib/dealpipe-deploy/github-token
+test "$(sudo stat -c '%a:%U:%G' /var/lib/dealpipe-deploy/github-token)" = 600:root:root
 # Must be root:root 600. No cat, no copying the credential into evidence.
 gh api --paginate repos/dealpipe/dealpipe/actions/runners --jq '.runners[]|{name,status,busy,labels:[.labels[].name]}' | tee "$BATCH/runners-before.jsonl"
 sudo -u dealpipe-ci env XDG_RUNTIME_DIR=/run/user/1102 docker --host unix:///run/user/1102/docker.sock ps --filter publish=8788 --format '{{.Names}} {{.Ports}}'
@@ -126,9 +127,8 @@ cat "$BATCH/measurements.json"
 
 Sampler runs ~5 minutes, read-only. Repeat during representative NAS background
 load and use the lowest headroom, largest reserve, and smallest CPU budget from
-the samples. Do not treat idle NAS memory as proven peak capacity. New pools
-have no current usage yet and must not be added back. `H = min(MemAvailable +
-current existing runner aggregate usage)`; `R >= max(8192 MiB, ceil(MemTotal/4))`.
+the samples. Do not treat idle NAS memory as proven peak capacity. No pool usage is added back. Cgroup readings are evidence only. `H = min(MemAvailable)`; never add back cgroup usage because that can
+double-count reclaimable cache; `R >= max(8192 MiB, ceil(MemTotal/4))`.
 All enabled pool ceilings must fit `H-R`; CPU pool ceilings must fit `nproc-2`.
 No host measurements are supplied by the agent.
 
@@ -263,13 +263,14 @@ Capture non-secret baseline rootless container IDs before stopping only idle
 listeners (not databases). Verify that these IDs are runner services only:
 
 ```bash
-gh api --paginate repos/dealpipe/dealpipe/actions/runners --jq '.runners[]|select(.busy)|.name'
-# Must be empty for NAS registrations. Human gate: idle maintenance window.
+busy=$(gh api --paginate repos/dealpipe/dealpipe/actions/runners --jq '.runners[]|select(.busy)|.name')
+test -z "$busy" || { echo 'Busy runner: STOP and wait'; exit 1; }
+# Continue only inside the existing maintenance/drain procedure.
 sudo -u dealpipe-ci env XDG_RUNTIME_DIR=/run/user/1102 docker --host unix:///run/user/1102/docker.sock ps -q --filter label=com.docker.compose.project=dealpipe-ci > "$BATCH/ci-container-ids"
 sudo -u dealpipe-ci env XDG_RUNTIME_DIR=/run/user/1102 docker --host unix:///run/user/1102/docker.sock ps --filter label=com.docker.compose.project=dealpipe-ci --format '{{.ID}} {{.Names}}'
 while read -r id; do
   test -n "$id"
-  sudo -u dealpipe-ci env XDG_RUNTIME_DIR=/run/user/1102 docker --host unix:///run/user/1102/docker.sock top "$id"
+  sudo -u dealpipe-ci env XDG_RUNTIME_DIR=/run/user/1102 docker --host unix:///run/user/1102/docker.sock top "$id" | python3 -c 'import sys; assert "Runner.Worker" not in sys.stdin.read(), "Active worker: STOP"'
 done < "$BATCH/ci-container-ids"
 # STOP if any Runner.Worker is present. Do not stop an active job.
 while read -r id; do

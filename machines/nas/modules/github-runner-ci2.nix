@@ -137,7 +137,7 @@ in {
         RES_OPTIONS = "timeout:1 attempts:1";
       };
       postStart = ''
-        printf 'nameserver 1.1.1.1\nnameserver 9.9.9.9\n' > "$XDG_RUNTIME_DIR/dockerd-rootless/resolv.conf"
+        printf 'nameserver 1.1.1.1\nnameserver 9.9.9.9\n' > "$DOCKERD_ROOTLESS_ROOTLESSKIT_STATE_DIR/resolv.conf"
       '';
       serviceConfig = {
         Type = "notify";

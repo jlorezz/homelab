@@ -11,7 +11,7 @@ expression = '''let
 in {
   disabled = !(base.config.systemd.user.services ? docker-ci2);
   unit = { inherit (c.systemd.user.services.docker-ci2)
-    unitConfig serviceConfig environment restartIfChanged stopIfChanged; };
+    unitConfig serviceConfig environment restartIfChanged stopIfChanged postStart; };
   child = c.systemd.user.slices.dealpipe-ci2.sliceConfig;
   parent = c.systemd.slices.user-1102.sliceConfig;
   browser = { inherit (c.systemd.user.services.docker-browser)
@@ -32,6 +32,7 @@ env = unit['environment']
 assert env['DOCKERD_ROOTLESS_ROOTLESSKIT_PORT_DRIVER'] == 'none'
 assert env['DOCKERD_ROOTLESS_ROOTLESSKIT_DETACH_NETNS'] == 'false'
 assert env['DOCKERD_ROOTLESS_ROOTLESSKIT_STATE_DIR'] == '/run/user/1102/dealpipe-ci2/rootlesskit'
+assert '"$DOCKERD_ROOTLESS_ROOTLESSKIT_STATE_DIR/resolv.conf"' in unit['postStart']
 assert env['XDG_RUNTIME_DIR'] == '%t/dealpipe-ci2'
 assert env['DOCKERD_ROOTLESS_ROOTLESSKIT_FLAGS'] == '--copy-up=/var/lib/dealpipe-ci'
 assert env['DOCKERD'].startswith('/nix/store/') and env['DOCKERD'].endswith('-ci2-dockerd-namespace')

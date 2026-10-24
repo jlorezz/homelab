@@ -16,7 +16,7 @@ in {
   parent = c.systemd.slices.user-1102.sliceConfig;
   browser = { inherit (c.systemd.user.services.docker-browser)
     environment restartIfChanged stopIfChanged; };
-  daemon = builtins.readFile (builtins.head (builtins.match ".*--config-file=(.*)" c.systemd.user.services.docker-ci2.serviceConfig.ExecStart));
+  daemon = c.qnoxslab.githubRunnerCI2.daemonSettings;
 }'''
 result = json.loads(subprocess.check_output(['nix', 'eval', '--impure', '--json', '--expr', expression]))
 assert result['disabled']
@@ -33,7 +33,7 @@ assert env['DOCKERD_ROOTLESS_ROOTLESSKIT_STATE_DIR'] == '/run/user/1102/dealpipe
 assert env['XDG_RUNTIME_DIR'] == '%t/dealpipe-ci2'
 assert result['browser']['environment']['XDG_RUNTIME_DIR'] == '%t/dealpipe-browser'
 assert not result['browser']['restartIfChanged'] and not result['browser']['stopIfChanged']
-daemon = json.loads(result['daemon'])
+daemon = result['daemon']
 assert daemon['data-root'] == '/var/lib/dealpipe-ci/ci2/docker'
 assert daemon['exec-root'] == '/run/user/1102/dealpipe-ci2/exec'
 assert daemon['hosts'] == ['unix:///run/user/1102/dealpipe-ci2/docker.sock']

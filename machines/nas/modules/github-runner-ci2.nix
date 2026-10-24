@@ -2,6 +2,17 @@
 let
   cfg = config.qnoxslab.githubRunnerCI2;
   docker = config.virtualisation.docker.rootless.package;
+  daemonSettings = {
+    "data-root" = "/var/lib/dealpipe-ci/ci2/docker";
+    "exec-root" = "/run/user/1102/dealpipe-ci2/exec";
+    "pidfile" = "/run/user/1102/dealpipe-ci2/dockerd.pid";
+    "hosts" = [ "unix:///run/user/1102/dealpipe-ci2/docker.sock" ];
+    "exec-opts" = [ "native.cgroupdriver=systemd" ];
+    "cgroup-parent" = "dealpipe-ci2.slice";
+    "dns" = [ "1.1.1.1" "9.9.9.9" ];
+    "log-driver" = "local";
+    "log-opts" = { "max-size" = "10m"; "max-file" = "3"; };
+  };
 in {
   options.qnoxslab.githubRunnerCI2 = {
     enable = lib.mkEnableOption "experimental isolated second CI engine (requires measured admission rollout)";
@@ -11,6 +22,13 @@ in {
       description = "UNVERIFIED containment ceiling including runner/test services, not measured demand.";
     };
     engineCpuPercent = lib.mkOption { type = lib.types.ints.positive; default = 400; };
+    daemonSettings = lib.mkOption {
+      type = lib.types.attrs;
+      readOnly = true;
+      internal = true;
+      default = daemonSettings;
+      description = "Evaluable source of the exact daemon JSON, without realizing a store file.";
+    };
   };
   config = lib.mkIf cfg.enable {
     assertions = [
@@ -57,17 +75,7 @@ in {
         RuntimeDirectory = "dealpipe-ci2";
         RuntimeDirectoryMode = "0700";
         # Explicit separate config: never inherit the main engine daemon.json.
-        ExecStart = "${docker}/bin/dockerd-rootless --config-file=${pkgs.writeText "ci2-daemon.json" (builtins.toJSON {
-          "data-root" = "/var/lib/dealpipe-ci/ci2/docker";
-          "exec-root" = "/run/user/1102/dealpipe-ci2/exec";
-          "pidfile" = "/run/user/1102/dealpipe-ci2/dockerd.pid";
-          "hosts" = [ "unix:///run/user/1102/dealpipe-ci2/docker.sock" ];
-          "exec-opts" = [ "native.cgroupdriver=systemd" ];
-          "cgroup-parent" = "dealpipe-ci2.slice";
-          "dns" = [ "1.1.1.1" "9.9.9.9" ];
-          "log-driver" = "local";
-          "log-opts" = { "max-size" = "10m"; "max-file" = "3"; };
-        })}";
+        ExecStart = "${docker}/bin/dockerd-rootless --config-file=${pkgs.writeText "ci2-daemon.json" (builtins.toJSON cfg.daemonSettings)}";
       };
     };
     systemd.tmpfiles.rules = [

@@ -335,8 +335,47 @@ int main(int argc, char **argv) {
             self.verify(p, AGENT_CI_ENGINE_LOCK=str(self.root / 'b.lock'), AGENT_CI_CUSTODY='ready')
         self.data['profiles']['ci1']['memoryMiB'] += 1
         self.policy.write_text(json.dumps(self.data))
+        # Policy renewal cannot revoke or alter a live pinned reservation.
+        self.verify(p)
+        record = next(self.root.glob('lease-*'))
+        item = json.loads(record.read_text())
+        item['_profile'] = 'wrong-profile'
+        record.write_text(json.dumps(item))
         with self.assertRaises(RuntimeError):
             self.verify(p)
+
+    def test_expired_evidence_falls_back_to_exclusive_and_blocks_other_engines(self):
+        self.data.update(verifiedAt=time.time()-3600, expiresAt=time.time()-1)
+        self.policy.write_text(json.dumps(self.data))
+        a = self.start(AGENT_CI_EXPIRED_POLICY_FALLBACK='1')
+        self.trigger(a)
+        self.verify(a, AGENT_CI_EXPIRED_POLICY_FALLBACK='1')
+        self.blocked(self.root / 'heavy.lock', shared=True)
+        b = self.start(AGENT_CI_ENGINE_LOCK=str(self.root / 'b.lock'),
+                       AGENT_CI_PROFILE='ci2', AGENT_CI_EXPIRED_POLICY_FALLBACK='1')
+        self.trigger(b, 'HOOK_FAILED')
+
+    def test_expiry_during_engine_wait_releases_shared_lock_before_fallback(self):
+        self.data['expiresAt'] = time.time()+.2
+        self.policy.write_text(json.dumps(self.data))
+        with workload.lock(self.root / 'a.lock', 1):
+            p = self.start(AGENT_CI_EXPIRED_POLICY_FALLBACK='1', AGENT_CI_QUEUE_TIMEOUT='5')
+            p.stdin.write(b'G')
+            self.helper()
+            time.sleep(.25)
+        self.line(p, 'JOB')
+        self.line(p, 'EXEC_CLEAN')
+        self.verify(p, AGENT_CI_EXPIRED_POLICY_FALLBACK='1')
+        self.blocked(self.root / 'heavy.lock', shared=True)
+
+    def test_completion_keeps_pinned_custody_after_policy_expiry_or_removal(self):
+        p = self.start()
+        self.trigger(p)
+        self.data.update(verifiedAt=time.time()-3600, expiresAt=time.time()-1)
+        self.policy.write_text(json.dumps(self.data))
+        self.verify(p)
+        self.policy.unlink()
+        self.verify(p)
 
     def test_open_fds_and_marker_without_flocks_do_not_prove_custody(self):
         record = self.root / 'lease-forged'

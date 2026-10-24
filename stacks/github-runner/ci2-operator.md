@@ -121,6 +121,33 @@ and mutex must be provisioned once; lease files use flock, not cross-container P
 identity, and kernel-release on holder death. Cooperating trusted workers can
 write the ledger; this is resource coordination, not isolation from malicious jobs.
 
+The new CI image loads a Worker-only native receiver. Its constructor starts a
+receiver thread and returns immediately; managed startup and JobRequest IPC run
+before admission. The started hook obtains the locks/reservation and transfers
+their descriptors with SCM_RIGHTS to the actual Worker. The receiver retains
+CLOEXEC descriptors and acknowledges receipt. The hook verifies Worker inode,
+flock mode and pinned reservation evidence before allowing checkout. Completion
+only verifies that evidence. Hook exit/death after transfer cannot release the
+Worker's locks, and exec children cannot inherit them. Missing preload or failed
+proof never falls back to a detached helper. Queueing remains bounded at 1800
+seconds in the hook; runner IPC timeouts are unchanged.
+
+Native offline tests use a small ELF fixture. Before accepting the image, verify
+the actual .NET Runner.Worker retains the descriptors through started hook,
+checkout, a job, completed hook and final cleanup. Record the real runner version,
+image digest and Worker process start identity. While it lives, prove same-engine
+and global exclusive probes remain blocked; prove they release on Worker exit.
+Check an exec'd job child and an orphan child for absence of lease descriptors.
+Repeat after runner auto-update. Use the same verification as the hook:
+
+```bash
+# Inside the candidate runner, for its actual inventoried Worker PID only.
+PYTHONPATH=/usr/local/lib/agent-platform python3 -c 'import sys; from custody import verify_worker; verify_worker(int(sys.argv[1]))' "$WORKER_PID"
+```
+
+Until those runtime gates pass, a passing fake-Worker test is not a deployed-safety
+claim. Do not register the candidate for unrestricted parallel GitHub work first.
+
 ## Actual quiesce and drain before replacing listeners
 
 An idle snapshot is NOT a drain. Operator must first inhibit new dispatch locally

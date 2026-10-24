@@ -17,14 +17,16 @@ for side in before after; do
   if [ "$side" = before ]; then source=$tmp; fi
   nix eval --offline --impure --raw --expr "
     let f = builtins.getFlake \"path:$source\";
-        system = f.nixosConfigurations.nas.extendModules { modules = [
-          ({ lib, options, ... }: {
+        baseSystem = f.nixosConfigurations.nas;
+        hasCapacity = baseSystem.options.qnoxslab ? githubRunnerCapacity;
+        system = baseSystem.extendModules { modules = [
+          ({ lib, ... }: {
             qnoxslab.githubDeploymentRunners = {
               enable = lib.mkForce true;
               environments = lib.mkForce [ \"production\" ];
               image = lib.mkForce \"sha256:$(printf '%064d' 0)\";
             };
-          } // lib.optionalAttrs (options.qnoxslab ? githubRunnerCapacity) {
+          } // lib.optionalAttrs hasCapacity {
             qnoxslab.githubRunnerCapacity = {
               enable = true;
               measuredHeadroomMiB = 131072;

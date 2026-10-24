@@ -13,6 +13,12 @@ RUN mkdir -p /usr/local/lib/docker/cli-plugins \
     && docker compose version
 COPY entrypoint.sh /usr/local/bin/ci-runner
 COPY workload.py /usr/local/lib/agent-platform/workload.py
+COPY worker-custody.c /tmp/worker-custody.c
+COPY custody.py /usr/local/lib/agent-platform/custody.py
+RUN gcc -shared -fPIC -pthread -O2 -Wall -Wextra -Werror -o /usr/local/lib/agent-platform/worker-custody.so /tmp/worker-custody.c \
+    && rm /tmp/worker-custody.c
+# Applies across runner auto-updates; constructor is inert for all other executables.
+ENV LD_PRELOAD=/usr/local/lib/agent-platform/worker-custody.so
 COPY job-hook.py /usr/local/lib/agent-platform/job-hook.py
 RUN printf '#!/bin/bash\nexec python3 /usr/local/lib/agent-platform/job-hook.py started\n' > /usr/local/bin/ci-job-started.sh \
     && printf '#!/bin/bash\nexec python3 /usr/local/lib/agent-platform/job-hook.py completed\n' > /usr/local/bin/ci-job-completed.sh \

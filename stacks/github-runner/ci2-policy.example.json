@@ -1,0 +1,17 @@
+{
+  "enabled": false,
+  "evidence": "UNVERIFIED: replace with fresh representative working-set evidence and image revision",
+  "verifiedAt": null,
+  "expiresAt": null,
+  "reserveMiB": 11865,
+  "measuredHeadroomMiB": 34797,
+  "maxConcurrentMiB": 22932,
+  "cpuPercent": 800,
+  "profiles": {
+    "ci1": {"memoryMiB": null, "cpuPercent": 400},
+    "ci2": {"memoryMiB": null, "cpuPercent": 400},
+    "browser": {"memoryMiB": null, "cpuPercent": 400},
+    "static": {"memoryMiB": null, "cpuPercent": 200},
+    "static-2": {"memoryMiB": null, "cpuPercent": 200}
+  }
+}

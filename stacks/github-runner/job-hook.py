@@ -9,6 +9,7 @@ import time
 
 sys.path.insert(0, "/usr/local/lib/agent-platform")
 from workload import process_identity
+from custody import claim, verify_worker
 
 
 def worker_ancestor():
@@ -27,6 +28,17 @@ def main():
     identity = process_identity(pid)
     if identity is None:
         raise RuntimeError("Runner.Worker has exited")
+    if "AGENT_CI_PROFILE" in os.environ:
+        # Queue only after managed Worker startup has consumed the JobRequest.
+        # Completion proves continuing custody; it must never reacquire a lease.
+        if sys.argv[1] == "started":
+            claim(pid)
+        elif sys.argv[1] == "completed":
+            verify_worker(pid)
+        else:
+            raise RuntimeError("Unknown job hook stage")
+        print("CI kernel admission verified")
+        return
     directory = Path("/tmp/agent-ci-leases")
     directory.mkdir(mode=0o700, exist_ok=True)
     ready = directory / f"{pid}-{identity}.ready"
@@ -35,7 +47,9 @@ def main():
         stop.touch(mode=0o600)
         return
     budget = 1800  # Same pilot queue admission budget as agent-workload.
-    admission = [] if os.environ.get("AGENT_CI_EXCLUSIVE") == "1" else ["--shared"]
+    # Legacy/unconfigured images remain globally exclusive. Shared admission
+    # requires an explicit lane configuration, never an implicit new default.
+    admission = ["--shared"] if os.environ.get("AGENT_CI_EXCLUSIVE") == "0" else []
     child = subprocess.Popen([
         sys.executable, "/usr/local/lib/agent-platform/workload.py", "lease",
         *admission, "--owner-pid", str(pid), "--owner-identity", identity,
@@ -45,7 +59,7 @@ def main():
     deadline = time.monotonic() + budget + 5
     while time.monotonic() < deadline:
         if ready.is_file():
-            print("Shared CI admission acquired")
+            print("CI admission acquired")
             return
         if child.poll() is not None:
             raise RuntimeError("Workload lease failed; job must not start")

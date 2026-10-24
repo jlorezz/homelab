@@ -188,6 +188,8 @@ class CanaryTests(unittest.TestCase):
         self.assertIn('AGENT_CI_PROFILE=ci2', permanent)
         self.assertIn('AGENT_CI_EXCLUSIVE=0', permanent)
         self.assertIn('AGENT_CI_EXPIRED_POLICY_FALLBACK=1', permanent)
+        self.assertLess(m.REGISTER.index('chown 0:0 /runner'), m.REGISTER.index('./config.sh'))
+        self.assertLess(m.REGISTER.index('chmod 700 /runner'), m.REGISTER.index('./config.sh'))
         self.assertIn('AGENT_CI_ENGINE_LOCK=/run/ci-engine.lock', permanent)
         self.assertIn('type=bind,src=' + m.WORK + ',dst=' + m.WORK, permanent)
         self.assertIn('type=bind,src=' + str(self.socket) + ',dst=/var/run/docker.sock', permanent)

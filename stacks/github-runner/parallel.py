@@ -132,11 +132,10 @@ def render(compose, image, policy_path):
     second['cgroup_parent'] = 'dealpipe-ci2.slice'
     second['volumes'] = [v.replace('/var/lib/dealpipe-ci/runner:', '/var/lib/dealpipe-ci/ci2/runner:')
                          .replace('/var/lib/dealpipe-ci/home:', '/var/lib/dealpipe-ci/ci2/home:')
-                         .replace('/var/lib/dealpipe-ci/work', '/var/lib/dealpipe-ci/ci2/work')
                          .replace('/run/user/1102/docker.sock:', '/run/user/1102/dealpipe-ci2/docker.sock:')
                          for v in second['volumes']]
     second['environment'].update(RUNNER_NAME='dealpipe-nas-ci-2', RUNNER_LABEL='dealpipe-nas-ci',
-                                RUNNER_WORK_DIRECTORY='/var/lib/dealpipe-ci/ci2/work')
+                                RUNNER_WORK_DIRECTORY='/var/lib/dealpipe-ci/work')
     hooks(second, 'ci2', 'ci-2')
     return existing, {'name': 'dealpipe-ci2', 'services': {'runner': second}}
 

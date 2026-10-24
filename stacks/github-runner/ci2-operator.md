@@ -19,6 +19,63 @@ Same UID means same public-IPv4 nft egress policy, not a new security boundary.
 The executable and `/run/wrappers` path follow the
 [pinned nixpkgs rootless module](https://github.com/NixOS/nixpkgs/blob/ca1659429c950a11a565b5764e37a1b704e17ec8/nixos/modules/virtualisation/docker-rootless.nix).
 
+## CI2 canonical paths (source contract; live isolation UNVERIFIED)
+
+Dealpipe's unchanged coverage/services guard requires DockerRootDir to equal
+`/var/lib/dealpipe-ci/docker`. CI2 therefore uses that canonical daemon data-root,
+and the worker uses `RUNNER_WORK_DIRECTORY=/var/lib/dealpipe-ci/work` with the
+same canonical source and destination in its work bind. The CI2 engine must resolve
+those paths inside its own mount namespace. Do not substitute physical CI2 paths
+in rendered worker YAML, fake `docker info`, or relax Dealpipe's guard.
+
+Physical host storage remains `/var/lib/dealpipe-ci/ci2/docker` and
+`/var/lib/dealpipe-ci/ci2/work`. The service adds
+`DOCKERD_ROOTLESS_ROOTLESSKIT_FLAGS=--copy-up=/var/lib/dealpipe-ci` and sets
+`DOCKERD` to a Nix-generated child wrapper; it does not patch or rebuild Docker.
+The parent supplied a read-only capture of the pinned Docker 29.8.1 script:
+`DOCKERD` selects the child executable, and the official RootlessKit invocation
+uses `--propagation=rslave`. RootlessKit's
+[tmpfs/symlink implementation](https://github.com/rootless-containers/rootlesskit/blob/master/pkg/copyup/tmpfssymlink/tmpfssymlink.go)
+creates a private tmpfs parent whose entries point into a `.ro*` backing mount.
+That upstream reference describes the algorithm, not proof of the NAS runtime.
+
+Before any filesystem mutation the wrapper requires the child marker, real UID0,
+user AND mount namespaces different from PID1, an exact tmpfs parent mount with
+private/slave propagation, and both canonical paths as copy-up symlinks into the
+same backing directory. Physical sources must be directories. It unlinks ONLY
+those two private symlinks, creates private destinations, binds the CI2 sources,
+makes each bind private, and checks source/destination device+inode identity and
+mount presence before execing the real packaged dockerd. Real host canonical
+directories are never removal targets. Failed setup exits; there is no fallback
+to another engine or host path. Same-UID trusted repositories remain the trust
+model; filesystem namespacing is not a new security boundary.
+
+Runner and home sources remain `/var/lib/dealpipe-ci/ci2/runner` and
+`/var/lib/dealpipe-ci/ci2/home`; only CI2's socket is mounted into its worker.
+Exec-root, PID, socket and RootlessKit runtime remain under
+`/run/user/1102/dealpipe-ci2`. Main/browser/static path contracts are unchanged.
+
+UNVERIFIED live gates, reserved for the parent/operator after review:
+
+- Evaluate the opt-in module and wrapper text without IFD, then build/review the
+  exact generated CI2 unit and wrapper in the pinned NAS package environment.
+  Nix is unavailable in the implementation worker; the earlier parent evaluation
+  predates this path fix and does not validate this new wrapper.
+- Verify the actual pinned RootlessKit copy-up layout and Docker DOCKERD handoff.
+  A missing PID1 namespace read permission or differing layout must fail closed.
+  Never test the wrapper directly on the host, even with a forged child marker.
+- In the real RootlessKit child, verify mount/user/net namespace separation,
+  canonical mounts' device+inode identity with the CI2 physical sources, and
+  unchanged main host docker/work identities and contents before/after startup.
+  Verify no outward propagation; do not infer this from offline command mocks.
+- Query the actual CI2 socket's DockerRootDir and require the genuine canonical
+  value. Prove a worker and sibling service see the same canonical work files,
+  backed by CI2/work, while main-engine work/data remain untouched. Verify only
+  CI2's socket, its explicit cgroup parent, DNS, egress and network isolation.
+- Run the unchanged Dealpipe coverage/services guard and representative overlap
+  checks only after all existing drain, capacity, native custody and production
+  fingerprint gates below pass. None of those live gates is satisfied here.
+
 ## Read-only gates (operator, not implementation worker)
 
 Run from a verified Git checkout containing the returned implementation commit,
@@ -223,13 +280,14 @@ cat /sys/fs/cgroup/user.slice/user-1102.slice/memory.events
 cat /proc/pressure/memory
 ```
 
-Require exactly one `dealpipe-nas-ci-2` with `dealpipe-nas-ci`, independent
-main/browser/CI2 daemon roots and RootlessKit netns inodes, correct default
+Require exactly one `dealpipe-nas-ci-2` with `dealpipe-nas-ci`, independent physical
+main/browser/CI2 daemon backing roots and RootlessKit netns inodes, correct default
 Docker cgroup parent and actual runner AND Supabase process cgroup membership
 under the CI2 child and UID1102 parent. Any process escaping that child blocks
 acceptance. Inspect only selected mount/cgroup fields on sibling services too.
 CI2 gets only its own rootless socket; no host Docker socket, controller secret,
-other runner home/work, or production volume. Verify UID1102 public egress filtering
+other runner home or physical work backing, or production volume. The canonical
+CI2 work path must resolve to CI2/work inside its engine namespace. Verify UID1102 public egress filtering
 covers all three engines; do not test against production/private destinations.
 
 Observe two representative dealpipe-nas-ci jobs actually overlap with separate
@@ -262,3 +320,28 @@ cross-pool measured ledger (including idle/controller overhead) or serialize tho
 roles with heavy.lock and prove incremental memory fits. That would require its
 own reviewed controller/unit change; production must remain unchanged. No fresh
 preview/staging peak or overlap evidence exists here, so those gates stay closed.
+
+## Source-only path compatibility handoff (2026-10-24)
+
+Repository: `jlorezz/homelab`; issue #16 / PR #17 context. Implementation base:
+`db7156e676637264280dbe4718a8d3dc959f6420`; branch:
+`t3/ci2-docker-path-compatibility`. Scope is CI2's module, offline renderer,
+focused tests and these path-contract notes. Acceptance for this source change:
+canonical DockerRootDir/work paths over separate physical CI2 backing, refusal
+before mutation for a host invocation or real canonical directories, unchanged
+existing lane paths/ceilings and strict input allowlists. Actual runtime issue
+acceptance remains gated by the UNVERIFIED live checks above.
+
+Verification uses the existing `/tmp/homelab-ci2-validation/bin/python` environment
+and workload admission, with `CC='/tmp/ci-custody-toolchain/ziglang/zig cc'` for
+native offline fixtures. Runner suite: 61 tests; agent suite: 103 tests; source
+configuration doctor and `git diff --check`: pass. Namespace commands in the new
+11-test fixture are mocked, including mutation commands; these tests never run
+the deployed wrapper on the host or create real mounts. System Python initially
+lacked PyYAML; the existing validation environment passed without installation.
+Nix evaluation/build and actual Docker/RootlessKit namespace isolation were not
+performed (Nix unavailable in this worker). No host/SSH, engine/container/service,
+activation, push, PR mutation or merge operation was performed. Provider spend:
+unknown. Return the local implementation commit to the parent for review and the
+reserved runtime gates; do not treat earlier parent evaluation as this commit's
+Nix or runtime evidence.

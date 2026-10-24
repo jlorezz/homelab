@@ -17,6 +17,7 @@ in {
   browser = { inherit (c.systemd.user.services.docker-browser)
     environment restartIfChanged stopIfChanged; };
   daemon = c.qnoxslab.githubRunnerCI2.daemonSettings;
+  wrapper = c.qnoxslab.githubRunnerCI2.namespaceSetupScript;
 }'''
 result = json.loads(subprocess.check_output(['nix', 'eval', '--impure', '--json', '--expr', expression]))
 assert result['disabled']
@@ -31,11 +32,22 @@ assert env['DOCKERD_ROOTLESS_ROOTLESSKIT_PORT_DRIVER'] == 'none'
 assert env['DOCKERD_ROOTLESS_ROOTLESSKIT_DETACH_NETNS'] == 'false'
 assert env['DOCKERD_ROOTLESS_ROOTLESSKIT_STATE_DIR'] == '/run/user/1102/dealpipe-ci2/rootlesskit'
 assert env['XDG_RUNTIME_DIR'] == '%t/dealpipe-ci2'
+assert env['DOCKERD_ROOTLESS_ROOTLESSKIT_FLAGS'] == '--copy-up=/var/lib/dealpipe-ci'
+assert env['DOCKERD'].startswith('/nix/store/') and env['DOCKERD'].endswith('-ci2-dockerd-namespace')
+assert '/bin/dockerd-rootless --config-file=/nix/store/' in unit['serviceConfig']['ExecStart']
 assert result['browser']['environment']['XDG_RUNTIME_DIR'] == '%t/dealpipe-browser'
 assert not result['browser']['restartIfChanged'] and not result['browser']['stopIfChanged']
 daemon = result['daemon']
-assert daemon['data-root'] == '/var/lib/dealpipe-ci/ci2/docker'
+assert daemon['data-root'] == '/var/lib/dealpipe-ci/docker'
 assert daemon['exec-root'] == '/run/user/1102/dealpipe-ci2/exec'
 assert daemon['hosts'] == ['unix:///run/user/1102/dealpipe-ci2/docker.sock']
 assert daemon['cgroup-parent'] == 'dealpipe-ci2.slice'
-print('PASS evaluated CI2 isolation and unchanged parent')
+wrapper = result['wrapper']
+assert '_DOCKERD_ROOTLESS_CHILD:-' in wrapper
+assert '/proc/self/ns/$ns' in wrapper and '/proc/1/ns/$ns' in wrapper
+assert '/bin/id -ru' in wrapper
+assert '/bin/unlink "$base/$name"' in wrapper and '/bin/rm' not in wrapper
+assert 'mount --bind "$base/ci2/$name" "$base/$name"' in wrapper
+assert 'stat -Lc' in wrapper
+assert 'exec /nix/store/' in wrapper and '/bin/dockerd "$@"' in wrapper
+print('PASS evaluated CI2 source contracts and unchanged parent; runtime isolation UNVERIFIED')

@@ -237,11 +237,20 @@ class ParallelTests(unittest.TestCase):
         self.assertEqual(lane['environment']['RUNNER_NAME'], 'dealpipe-nas-ci-2')
         self.assertEqual(lane['cgroup_parent'], 'dealpipe-ci2.slice')
         self.assertIn('/run/user/1102/dealpipe-ci2/docker.sock:/var/run/docker.sock', lane['volumes'])
-        self.assertIn('/var/lib/dealpipe-ci/ci2/work:/var/lib/dealpipe-ci/ci2/work', lane['volumes'])
+        # Docker resolves this source inside CI2's private engine namespace.
+        self.assertIn('/var/lib/dealpipe-ci/work:/var/lib/dealpipe-ci/work', lane['volumes'])
+        self.assertEqual(lane['environment']['RUNNER_WORK_DIRECTORY'], '/var/lib/dealpipe-ci/work')
+        self.assertIn('/var/lib/dealpipe-ci/ci2/runner:/runner', lane['volumes'])
+        self.assertIn('/var/lib/dealpipe-ci/ci2/home:/home/ci', lane['volumes'])
+        self.assertEqual([v for v in lane['volumes'] if 'docker.sock' in v],
+                         ['/run/user/1102/dealpipe-ci2/docker.sock:/var/run/docker.sock'])
+        self.assertFalse(any('/ci2/work' in v for v in lane['volumes']))
         self.assertFalse(any(v.startswith('/run/user/1102/docker.sock:') or '/var/run/docker.sock:' in v
                              or 'github-token' in v for v in lane['volumes']))
         for name, old in original['services'].items():
             new = existing['services'][name]
+            self.assertEqual([v for v in old['volumes'] if '/work:' in v],
+                             [v for v in new['volumes'] if '/work:' in v])
             for key in ('mem_limit', 'memswap_limit', 'cpus'):
                 self.assertEqual(old[key], new[key])
             self.assertEqual(new['environment']['AGENT_CI_EXCLUSIVE'], '0')

@@ -38,7 +38,7 @@ fc4e319c5d1a929c5d1f63dfd7313c12b6689dd9f73799f31f48759d4fe2c933  /etc/systemd/s
 edb249f00e1c626483e6103f700943742c31a3afebef689a92f913846212a85f  /etc/systemd/system.control/dealpipe-deploy-production.service.d/40-chromium.conf
 HASHES
 sha256sum --check "$BATCH/production.sha256"
-systemctl --user --machine=dealpipe-ci@.host cat docker.service docker-browser.service > "$BATCH/existing-engine-units"
+runuser -u dealpipe-ci -- env XDG_RUNTIME_DIR=/run/user/1102 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1102/bus systemctl --user cat docker.service docker-browser.service > "$BATCH/existing-engine-units"
 systemctl show user-1102.slice -p MemoryMax -p MemorySwapMax -p CPUQuotaPerSecUSec > "$BATCH/parent-limits"
 cat /sys/fs/cgroup/user.slice/user-1102.slice/{memory.current,memory.events,cpu.max} > "$BATCH/parent-before"
 agent-workload run --queue-timeout 300 --timeout 600 -- python3 stacks/github-runner/measure-capacity.py \
@@ -50,9 +50,11 @@ Inventory actual runner names, engine sockets, mounts, image IDs, restart polici
 and cgroups using focused inspect, never `.Config.Env`. Export/reconcile the live
 Portainer Compose (including static-2) as `$BATCH/live-reviewed.yaml`. Main and
 browser are distinct engines; the renderer refuses the old source's shared browser
-socket. Source must first reconcile `docker-browser.service` from the captured
-unit. Its unknown live contents are NOT invented here. The known production hashes
-do not reveal Chromium override content. Preserve those exact files and images.
+socket. `github-runner-browser.nix` now reflects the unit and daemon configuration
+read on 2026-10-24, including the separate runtime/data roots and DNS postStart
+fix. The main daemon's live DNS recovery drop-in is also represented in source.
+Keep the captured unit and compare again before scoped activation; these source
+changes do not restart either engine. Preserve exact production files and images.
 
 Required measurement evidence is not supplied by this patch. Obtain representative
 full CI1, CI2, browser and both static working sets INCLUDING Docker/Supabase
@@ -62,9 +64,15 @@ representative background load. A Docker worker's memory peak alone is inadequat
 CI1 currently lacks a dedicated child cap: measure its complete engine workloads
 and keep the unchanged parent as the ultimate bound. Main/browser netns isolation
 must also be verified before any overlap. Admission is conservative: it adds FULL
-live reservations to current memory usage and subtracts them from MemAvailable,
+live reservations to committed cgroup usage and subtracts them from MemAvailable,
 so an otherwise safe combination can remain queued. Do not bypass this check or
 lower estimates to get jobs through.
+
+Committed usage discounts only clean inactive file cache. Active cache, tmpfs/shmem,
+dirty/writeback pages, anonymous and kernel memory remain committed. Nothing is
+added to host MemAvailable. Offline regression fixtures cover a 28 GiB cgroup with
+22 GiB inactive clean cache, then prove that tmpfs or dirty pages are not discounted.
+This is accounting behavior, not evidence of real workload peaks.
 
 The sample policy is DISABLED with null working sets. Fresh measured policy JSON
 must have positive integer memoryMiB/cpuPercent for all five profiles, an evidence

@@ -160,7 +160,7 @@ def committed_memory_mib(pool):
 def capacity_reservation(directory, policy_path, profile, meminfo, pool):
     """Serialize reservations; kernel-held file locks survive namespaces, not exits.
 
-    Current usage plus FULL live reservations deliberately double counts active
+    Committed usage plus FULL live reservations deliberately double counts active
     jobs. Conservative refusal is preferable to claiming reclaimed/cache RAM.
     The directory and mutex inode are provisioned by the operator, never replaced.
     """

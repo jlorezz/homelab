@@ -13,6 +13,7 @@ in {
   unit = c.systemd.user.services.docker-ci2;
   child = c.systemd.user.slices.dealpipe-ci2.sliceConfig;
   parent = c.systemd.slices.user-1102.sliceConfig;
+  browser = c.systemd.user.services.docker-browser;
   daemon = builtins.readFile (builtins.head (builtins.match ".*--config-file=(.*)" c.systemd.user.services.docker-ci2.serviceConfig.ExecStart));
 }'''
 result = json.loads(subprocess.check_output(['nix', 'eval', '--impure', '--json', '--expr', expression]))
@@ -27,6 +28,9 @@ env = unit['environment']
 assert env['DOCKERD_ROOTLESS_ROOTLESSKIT_PORT_DRIVER'] == 'none'
 assert env['DOCKERD_ROOTLESS_ROOTLESSKIT_DETACH_NETNS'] == 'false'
 assert env['DOCKERD_ROOTLESS_ROOTLESSKIT_STATE_DIR'] == '/run/user/1102/dealpipe-ci2/rootlesskit'
+assert env['XDG_RUNTIME_DIR'] == '%t/dealpipe-ci2'
+assert result['browser']['environment']['XDG_RUNTIME_DIR'] == '%t/dealpipe-browser'
+assert not result['browser']['restartIfChanged'] and not result['browser']['stopIfChanged']
 daemon = json.loads(result['daemon'])
 assert daemon['data-root'] == '/var/lib/dealpipe-ci/ci2/docker'
 assert daemon['exec-root'] == '/run/user/1102/dealpipe-ci2/exec'

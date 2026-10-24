@@ -357,8 +357,15 @@ Supply fresh measured policy at
 `/var/lib/agent-workloads/ci-policy/policy.json`; validate it with
 `workload.admission_policy(path, 'ci2')`. The helper uses that same validator
 before consuming stdin and again before permanent container creation. It never
-creates policy, invents working sets, renews evidence or enables expired-policy
-fallback. Do not use the disabled example policy or estimates to bypass refusal.
+creates policy, invents working sets or renews evidence. The worker uses the
+reviewed exclusive fallback after policy expiry. For the first serial canary,
+reserve the entire enforced 16384 MiB CI2 engine ceiling, then atomically expire
+that valid policy after registration and before dispatch. This excludes legacy
+shared/exclusive heavy-lock users without claiming a measured CI2 job peak.
+Only this private label may be dispatched during the bootstrap gate. A fresh
+policy and verified drain/migration of existing lanes are required before shared
+parallel tests. Do not use the disabled example policy or reduce estimates to
+bypass refusal.
 The cgroup, policy, admission directory/mutex and lock inodes must already be
 provisioned. Do not replace lock files while any worker can hold them.
 

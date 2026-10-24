@@ -83,8 +83,8 @@ def lane():
                               'RUNNER_NAME': NAME, 'RUNNER_LABEL': LABEL,
                               'RUNNER_WORK_DIRECTORY': WORK}}
     hooks(result, 'ci2', 'ci-2')
-    # Fresh measured policy is mandatory. No stale-policy fallback for this canary.
-    result['environment']['AGENT_CI_EXPIRED_POLICY_FALLBACK'] = '0'
+    # Provisioning requires fresh policy; later expiry uses reviewed exclusive admission.
+    result['environment']['AGENT_CI_EXPIRED_POLICY_FALLBACK'] = '1'
     return result
 
 

@@ -186,7 +186,7 @@ class CanaryTests(unittest.TestCase):
         self.assertNotIn('RUNNER_LABEL=dealpipe-nas-ci', permanent)
         self.assertIn('AGENT_CI_PROFILE=ci2', permanent)
         self.assertIn('AGENT_CI_EXCLUSIVE=0', permanent)
-        self.assertIn('AGENT_CI_EXPIRED_POLICY_FALLBACK=0', permanent)
+        self.assertIn('AGENT_CI_EXPIRED_POLICY_FALLBACK=1', permanent)
         self.assertIn('AGENT_CI_ENGINE_LOCK=/run/ci-engine.lock', permanent)
         self.assertIn('type=bind,src=' + m.WORK + ',dst=' + m.WORK, permanent)
         self.assertIn('type=bind,src=' + str(self.socket) + ',dst=/var/run/docker.sock', permanent)

@@ -20,13 +20,13 @@ for side in before after; do
         baseSystem = f.nixosConfigurations.nas;
         hasCapacity = baseSystem.options.qnoxslab ? githubRunnerCapacity;
         system = baseSystem.extendModules { modules = [
-          ({ lib, ... }: {
+          ({ lib, ... }: lib.mkMerge [ {
             qnoxslab.githubDeploymentRunners = {
               enable = lib.mkForce true;
               environments = lib.mkForce [ "production" ];
               image = lib.mkForce "sha256:0000000000000000000000000000000000000000000000000000000000000000";
             };
-          } // lib.optionalAttrs hasCapacity {
+          } (lib.optionalAttrs hasCapacity {
             qnoxslab.githubRunnerCapacity = {
               enable = true;
               measuredHeadroomMiB = 131072;
@@ -34,7 +34,7 @@ for side in before after; do
               reserveMiB = 32768;
               measuredCpuPercent = 3200;
             };
-          }) ]; };
+          }) ]) ]; };
     in system.config.systemd.units."dealpipe-deploy-production.service".text
   ' > "$out/production-$side.service"
 done

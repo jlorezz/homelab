@@ -47,7 +47,7 @@ def inspect(name):
 
 
 def idle(name):
-    require('Runner.Worker' not in docker('top', name, '-eo', 'comm,args'),
+    require('Runner.Worker' not in docker('top', name, '-eo', 'pid,comm,args'),
             'Runner.Worker active; refusing operation')
 
 

@@ -9,7 +9,10 @@ the same way.
 
 Report-only by default; exit status 1 means orphans were found. `--redispatch`
 cancels and reruns failed jobs of an affected run only when, re-read just
-before cancelling, none of the run's jobs is in progress. Uses the
+before cancelling, none of the run's jobs is in progress. GitHub has no
+conditional cancel: a job starting in the instant between that re-read and the
+cancel is cancelled too, and `rerun --failed` then runs it again (repeated,
+not lost). Redispatch is therefore opt-in, never scheduled by default. Uses the
 caller's `gh` login, which must be allowed to list repository runners.
 """
 

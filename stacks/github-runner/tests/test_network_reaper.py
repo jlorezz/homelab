@@ -23,7 +23,8 @@ class FakeDocker:
     def __init__(self, networks, refuse=()):
         self.networks, self.refuse, self.removed = networks, set(refuse), []
 
-    def __call__(self, *args):
+    def __call__(self, *args, timeout=None):
+        self.timeouts = getattr(self, 'timeouts', []) + [timeout]
         if args[:2] == ("network", "ls"):
             return "\n".join(n["Id"] for n in self.networks)
         if args[:2] == ("network", "inspect"):
@@ -72,12 +73,23 @@ class NetworkReaperTests(unittest.TestCase):
                             refuse={"id-ci-40064022103-1-build-0_default"})
         self.assertEqual(network_reaper.reap(NOW, run=docker), ["ci-40064022225-1-build-0_default"])
 
-    def test_sweep_stops_at_its_budget(self):
-        docker = FakeDocker([network(f"ci-4006402210{i}-1-build-0_default") for i in range(5)])
-        ticks = iter([0, 0, 10, 61, 62, 63])
+    def test_sweep_stops_at_its_budget_and_no_call_overruns_it(self):
+        clock = [0.0]
+
+        class Slow(FakeDocker):
+            def __call__(self, *args, timeout=None):
+                result = super().__call__(*args, timeout=timeout)
+                if args[:2] == ("network", "rm"):
+                    clock[0] += 25  # each removal is slow
+                return result
+
+        docker = Slow([network(f"ci-4006402210{i}-1-build-0_default") for i in range(5)])
         with patch("builtins.print"):
-            removed = network_reaper.reap(NOW, run=docker, clock=lambda: next(ticks), budget=60)
-        self.assertEqual(len(removed), 2)
+            removed = network_reaper.reap(NOW, run=docker, clock=lambda: clock[0], budget=60)
+        # Removals start at t=0, 25 and 50; at t=75 the sweep stops.
+        self.assertEqual(len(removed), 3)
+        # ls, inspect and the first two removals get the full 15 s; the third only what is left.
+        self.assertEqual(docker.timeouts, [15, 15, 15, 15, 10])
 
     def test_timestamp_formats(self):
         self.assertEqual(network_reaper.created_at("2026-10-24T13:00:00Z"),

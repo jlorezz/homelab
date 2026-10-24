@@ -39,9 +39,9 @@ def created_at(value):
     return datetime.fromisoformat(f"{base}.{fraction}{'+00:00' if zone == 'Z' else zone}")
 
 
-def docker(*args):
+def docker(*args, timeout=DOCKER_TIMEOUT):
     return subprocess.run(["docker", *args], capture_output=True, text=True,
-                          timeout=DOCKER_TIMEOUT, check=True).stdout
+                          timeout=timeout, check=True).stdout
 
 
 def candidates(networks, now, min_age=MIN_AGE_SECONDS):
@@ -56,18 +56,23 @@ def candidates(networks, now, min_age=MIN_AGE_SECONDS):
 
 def reap(now=None, run=docker, clock=time.monotonic, budget=SWEEP_SECONDS):
     deadline = clock() + budget
+
+    def remaining():
+        # Every call gets only what is left, so the sweep never exceeds the budget.
+        return max(0.1, min(DOCKER_TIMEOUT, deadline - clock()))
+
     now = now or datetime.now(timezone.utc)
-    ids = run("network", "ls", "--quiet", "--no-trunc").split()
+    ids = run("network", "ls", "--quiet", "--no-trunc", timeout=remaining()).split()
     if not ids:
         return []
     removed = []
-    for network_id, name in candidates(json.loads(run("network", "inspect", *ids)), now):
+    for network_id, name in candidates(json.loads(run("network", "inspect", *ids, timeout=remaining())), now):
         if clock() >= deadline:
             print(f"CI network hygiene stopped at its {budget}s budget; the next job continues")
             break
         try:
             # Removal by immutable ID; Docker itself refuses a network in use.
-            run("network", "rm", network_id)
+            run("network", "rm", network_id, timeout=remaining())
         except subprocess.CalledProcessError:
             continue
         removed.append(name)

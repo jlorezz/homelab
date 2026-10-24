@@ -17,7 +17,7 @@ Incident 2026-10-24 (Dealpipe PR #829, staging run 40083703557):
 | Guard | Where | Effect |
 |---|---|---|
 | In-job cleanup of the job's own project | Dealpipe #829 | First line; cannot run after runner loss |
-| Lane job hooks remove empty CI networks | `network_reaper.py` via `job-hook.py` | At job start (leftovers of a lost previous job) and completion (still inside admission); never fails a job |
+| Lane job hooks remove empty CI networks | `network_reaper.py` via `job-hook.py` | At job start (leftovers of a lost previous job) and completion (still inside admission); 60 s budget; never fails a job |
 | Explicit `default-address-pools` (/24, 256 networks) | main `10.201/16`, browser `10.202/16`, CI2 `10.203/16` | Headroom so a missed cleanup degrades slowly instead of after ~30 networks |
 | No relabeling of production runners | `stacks/agents/policy/AGENTS.md` | Removes the trigger of the orphaned job |
 | `queue-watchdog.py` | operator / scheduled agent | Reports jobs queued > 15 min while a matching runner is idle; optional `--redispatch` |
@@ -54,5 +54,7 @@ python3 stacks/github-runner/queue-watchdog.py              # report; exit 1 if 
 python3 stacks/github-runner/queue-watchdog.py --redispatch # cancel + rerun failed
 ```
 
-Redispatch skips any run that still has a job in progress. Run it after every
+Redispatch re-reads the run and skips it if any job is in progress. GitHub has
+no conditional cancel, so a job starting in the instant before the cancel is
+cancelled and then rerun by `--failed`: repeated work, not lost work. Run it after every
 label change or runner replacement, and before blaming capacity for a long queue.

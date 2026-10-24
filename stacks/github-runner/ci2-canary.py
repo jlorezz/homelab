@@ -34,6 +34,9 @@ IFS= read -r ACTIONS_RUNNER_INPUT_TOKEN
 export ACTIONS_RUNNER_INPUT_TOKEN
 cd /runner
 cp -a /opt/actions-runner/. /runner/
+# cp -a copies upstream directory ownership/mode too; restore private state.
+chown 0:0 /runner
+chmod 700 /runner
 ./config.sh --unattended --url https://github.com/dealpipe/dealpipe \
   --name dealpipe-nas-ci-2-canary --labels dealpipe-ci2-canary \
   --work /var/lib/dealpipe-ci/work >/dev/null 2>&1
@@ -156,7 +159,7 @@ def create_args(image, temporary=False):
 
 
 def registered():
-    data = json.loads((ROOT / 'runner/.runner').read_text())
+    data = json.loads((ROOT / 'runner/.runner').read_text(encoding='utf-8-sig'))
     if (data.get('agentName', data.get('runnerName')) != NAME
             or data.get('gitHubUrl') != 'https://github.com/dealpipe/dealpipe'
             or data.get('workFolder') != WORK

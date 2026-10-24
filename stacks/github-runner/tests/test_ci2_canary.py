@@ -139,7 +139,8 @@ class CanaryTests(unittest.TestCase):
             self.assertEqual(kwargs['stdout'], subprocess.DEVNULL)
             data = dict(agentName='wrong' if self.bad_registration else m.NAME,
                         gitHubUrl='https://github.com/dealpipe/dealpipe', workFolder=m.WORK)
-            (self.root / 'runner/.runner').write_text(json.dumps(data))
+            # Real .NET runner registration emits a UTF-8 BOM.
+            (self.root / 'runner/.runner').write_text(json.dumps(data), encoding='utf-8-sig')
             (self.root / 'runner/.credentials').write_text('PRIVATE fixture')
         elif args[:2] not in (['container', 'create'], ['container', 'start'], ['container', 'wait']):
             self.fail('Unexpected Docker operation: ' + repr(args))
@@ -187,6 +188,8 @@ class CanaryTests(unittest.TestCase):
         self.assertIn('AGENT_CI_PROFILE=ci2', permanent)
         self.assertIn('AGENT_CI_EXCLUSIVE=0', permanent)
         self.assertIn('AGENT_CI_EXPIRED_POLICY_FALLBACK=1', permanent)
+        self.assertLess(m.REGISTER.index('chown 0:0 /runner'), m.REGISTER.index('./config.sh'))
+        self.assertLess(m.REGISTER.index('chmod 700 /runner'), m.REGISTER.index('./config.sh'))
         self.assertIn('AGENT_CI_ENGINE_LOCK=/run/ci-engine.lock', permanent)
         self.assertIn('type=bind,src=' + m.WORK + ',dst=' + m.WORK, permanent)
         self.assertIn('type=bind,src=' + str(self.socket) + ',dst=/var/run/docker.sock', permanent)

@@ -333,3 +333,137 @@ Offline namespace tests mock every command, including mount and unlink; they nev
 create real mounts. Passing these fixtures proves refusal and command contracts,
 not live isolation. The generated unit, launcher, copy-up layout, canonical binds
 and actual Worker lifecycle still require the runtime evidence described above.
+
+## Initial private-label canary helper (issue #16)
+
+`ci2-canary.py` is a separate, one-shot alternative to rendering/deploying the
+full topology. It **does not migrate existing workers**. The parent/operator owns
+all host activity and diagnostics. The implementation worker executes only mocked
+contracts and source checks. The task brief reports the empty CI2 engine already
+running at `unix:///run/user/1102/dealpipe-ci2/docker.sock`, genuine canonical
+DockerRootDir backed by private CI2 storage, and the unchanged 32 GiB / 8 CPU /
+swap0 parent with a 16 GiB / 4 CPU / swap0 child. These are operator-provided
+prerequisites, not runtime observations by this helper's implementation tests.
+
+Before invoking it, the parent must verify the generated image is reviewed and
+loaded into **CI2**, the namespaces/canonical mounts and parent/child resource
+boundaries above still hold, and there is no GitHub registration named
+`dealpipe-nas-ci-2-canary`. Inventory GitHub runners through existing authenticated
+operator tooling; the helper has no GitHub client or controller credential.
+Do not select an existing registration for replacement. Keep production
+fingerprint checks and unchanged CI diagnostics from the earlier gates.
+
+Supply fresh measured policy at
+`/var/lib/agent-workloads/ci-policy/policy.json`; validate it with
+`workload.admission_policy(path, 'ci2')`. The helper uses that same validator
+before consuming stdin and again before permanent container creation. It never
+creates policy, invents working sets or renews evidence. The worker uses the
+reviewed exclusive fallback after policy expiry. For the first serial canary,
+reserve the entire enforced 16384 MiB CI2 engine ceiling, then atomically expire
+that valid policy after registration and before dispatch. This excludes legacy
+shared/exclusive heavy-lock users without claiming a measured CI2 job peak.
+Only this private label may be dispatched during the bootstrap gate. A fresh
+policy and verified drain/migration of existing lanes are required before shared
+parallel tests. Do not use the disabled example policy or reduce estimates to
+bypass refusal.
+The cgroup, policy, admission directory/mutex and lock inodes must already be
+provisioned. Do not replace lock files while any worker can hold them.
+
+The helper requires UID1102 and private, UID1102-owned, nonsymlink directories
+`/var/lib/dealpipe-ci/ci2/{runner,home}` which are **completely empty**, with no
+previous `.canary-attempt` claim. It refuses all existing containers in CI2,
+including stopped ones. It verifies socket ownership/type, real rootless
+cgroup-v2/systemd engine metadata, canonical DockerRootDir, exact supplied local
+image ID, expected entrypoint/native-custody/job-hook defaults, no image-declared
+volumes or credential environment defaults, and existing admission bind sources.
+Image metadata checks supplement operator review; they do not establish binary
+contents, actual cgroup placement or namespace isolation.
+
+First run the read-only preflight as the CI account from the reviewed checkout:
+
+```bash
+# NEW_IMAGE must be the reviewed, loaded sha256:<64 lowercase hex> image ID.
+sudo -u dealpipe-ci -- python3 stacks/github-runner/ci2-canary.py --image "$NEW_IMAGE"
+```
+
+Only after those gates, invoke `--apply` with one fresh registration token on
+stdin. For example, from an already authenticated operator account, using its
+existing GitHub authorization without transferring its credential to a worker:
+
+```bash
+set +x
+set -o pipefail
+gh api --method POST repos/dealpipe/dealpipe/actions/runners/registration-token --jq .token |
+  sudo -u dealpipe-ci -- python3 stacks/github-runner/ci2-canary.py --image "$NEW_IMAGE" --apply
+```
+
+No registration token argument, exported host variable, temporary token file,
+controller PAT mount or rootful socket is used. Never tee the pipe or record its
+input. The helper reads stdin once, bounded to 4096 characters and 30 seconds; the producer must
+close stdin after its one token. Use a non-recorded operator session. It sends
+the token only as `docker exec -i` stdin, exports
+`ACTIONS_RUNNER_INPUT_TOKEN` **inside** the temporary container, and discards all
+registration stdout/stderr. Docker invocations use an explicit CI2 socket and
+an isolated CLI environment without inherited Docker context/auth variables.
+Registration credentials naturally persist under `/runner`; never include that
+state or diagnostic contents in a handoff. This is not a claim that upstream
+runner diagnostics or process memory cannot contain sensitive material.
+
+Apply first creates an exclusive, persistent `.canary-attempt` claim. It creates
+`dealpipe-nas-ci-2-canary-config` with the reviewed image, bash entrypoint, only
+runner/home binds, no Docker socket and Docker logging disabled. Its keeper
+cannot start a Listener and exits on exec completion or after five minutes. The
+registration exec is bounded to 180 seconds; all other Docker calls are bounded
+to 30 seconds. A Docker timeout can leave work running in the daemon: retain state
+and inspect, never assume the operation did not happen. The exec copies
+`/opt/actions-runner` into empty `/runner`, calls `config.sh --unattended` without
+`--replace`, and passes only the custom label `dealpipe-ci2-canary`. Default
+`self-hosted`, `Linux`, `X64` labels remain enabled. Registration/output is never
+returned by the helper. Failure retains even partially written registration.
+
+Only after successful registration, successful stopped configuration-container
+state and matching `.runner`/`.credentials` checks does it create and start
+`dealpipe-nas-ci-2-canary`. The permanent container uses the image's normal
+entrypoint (including Bun bootstrap and hooks), init, user `0:0` within the
+rootless engine, host networking **inside CI2's isolated engine**, explicit
+`dealpipe-ci2.slice` parent, 12 GiB memory and equal memory-swap, 4 CPUs, PID limit
+4096 and `unless-stopped`. Its binds match `parallel.py`'s CI2 contract:
+
+- CI2 private runner/home, and canonical `/var/lib/dealpipe-ci/work` to itself
+  (the engine resolves this to private physical CI2/work).
+- Only CI2's socket to `/var/run/docker.sock`.
+- Existing `heavy.lock`, `ci-2.lock` and admission ledger, read-only policy and
+  read-only UID1102 pool cgroup view. No registration-token bind.
+
+The worker uses profile `ci2`, global heavy SH plus CI2 engine EX plus measured
+policy reservation through native Worker custody. Existing legacy heavy EX
+workers continue to serialize the canary until the parent separately migrates
+them. Do not add `dealpipe-nas-ci` or any other common custom label yet. Workflows
+using only default self-hosted labels can still select this runner: the parent
+must confirm repository scheduling is constrained appropriately before starting.
+Verify GitHub's **public** registered name and labels with existing operator
+inventory before dispatching a job specifically to `dealpipe-ci2-canary`.
+
+### Failure retention, rollback and remaining live gates
+
+The helper contains **no stop, kill, remove, restart, deregister or overwrite
+operation**. It retains both containers, all state and the attempt claim on any
+failure. It does not retry or adopt an existing canary. A client error on start
+may mean the permanent canary is already running. **Refuse cleanup whenever the
+permanent canary is running**, even if an idle or process check suggests no job;
+a later Listener dispatch can race that check. Never force removal. The safe
+initial rollback is retention and operator investigation. Any later recovery
+needs a separately authorized, drained procedure, exact ownership/identity and
+stopped-state evidence; no such cleanup is automated here. Do not clear the claim
+or reuse registration state to rerun this helper. Do not deregister a failed
+registration automatically.
+
+A successful helper exit reports only that start was requested. Parent-owned live
+gates remain: actual .NET Worker descriptor retention through JobRequest and
+steps, heavy SH/engine EX/reservation custody, unchanged coverage/services guard,
+real job execution and service cleanup, canonical sibling-work visibility,
+network isolation and cgroup ceilings, runner auto-update/native-preload behavior,
+public label verification and production fingerprints. No jobs, deployments,
+engine activity or GitHub registration are performed by the offline tests.
+Representative overlap, no OOM/port collision, queue median/p90 improvements and
+issue #16 parallel acceptance remain unproven. Provider spend is unknown.

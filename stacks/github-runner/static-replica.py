@@ -194,11 +194,10 @@ def operate(args, baseline, inode):
     require(inspect(CONFIG) is None, 'Configuration container already exists; inspect privately')
     if args.rollback:
         require(existing is not None and ROOT.exists(), 'No owned replica to roll back')
-        if existing['State']['Running']:
-            idle(NAME)
-        docker('stop', NAME)
+        require(not existing['State']['Running'],
+                'Running replica retained: admission cannot be quiesced safely by this helper')
         docker('rm', NAME)
-        print('Owned idle replica removed; private state retained. GitHub cleanup is operator-owned.')
+        print('Owned stopped replica removed; private state retained. GitHub cleanup is operator-owned.')
         return
     if existing:
         require(ROOT.exists() and existing['State']['Running'], 'Owned replica is stopped; inspect privately')
@@ -244,12 +243,9 @@ def operate(args, baseline, inode):
                     continue
                 owned(container, args.expected_image, name)
                 if name == NAME and container['State']['Running']:
-                    try:
-                        idle(NAME)
-                    except Exception:
-                        print('Replica retained: active job or idle check failed; rollback gated until idle.', file=sys.stderr)
-                        continue
-                    docker('stop', NAME)
+                    # An idle inspection is not a drain: work may arrive before stop.
+                    print('Running replica retained; rollback gated until stopped safely.', file=sys.stderr)
+                    continue
                 docker('rm', *(['-f'] if name == CONFIG else []), name)
         raise
     print('Static-2 started. Verify listener/GitHub health and unit hashes; state retained on failure.')

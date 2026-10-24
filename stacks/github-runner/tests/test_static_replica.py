@@ -202,17 +202,17 @@ class ReplicaTests(unittest.TestCase):
             self.fail = failure
             with self.assertRaises(RuntimeError):
                 self.execute(apply=True)
-            self.assertEqual(set(self.containers), {m.SOURCE})
+            self.assertEqual(set(self.containers), {m.SOURCE} if failure == 'configure' else {m.SOURCE, m.NAME})
             self.assertTrue(m.ROOT.is_dir())
             self.assertTrue(all(m.SOURCE not in a for a in self.mutations()))
             if failure == 'start':
                 self.assertTrue((m.ROOT/'runner/.runner').exists())
 
-    def test_rollback_refuses_busy_unknown_mounts_then_removes_only_idle_owned(self):
+    def test_rollback_refuses_running_unknown_mounts_then_removes_only_stopped_owned(self):
         self.execute(apply=True)
         self.calls.clear()
         self.busy.add(m.NAME)
-        with self.assertRaisesRegex(RuntimeError, 'Runner.Worker'):
+        with self.assertRaisesRegex(RuntimeError, 'Running replica retained'):
             self.execute(rollback=True)
         self.assertEqual(self.mutations(), [])
         self.busy.clear()
@@ -220,12 +220,30 @@ class ReplicaTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, 'Unknown mounts'):
             self.execute(rollback=True)
         self.containers[m.NAME]['Mounts'].pop()
-        # Insufficient available capacity should never prevent removing an idle replica.
+        self.containers[m.NAME]['State']['Running'] = False
+        # Insufficient available capacity should never prevent removing a stopped replica.
         (m.POOL/'memory.max').write_text('1')
         del self.containers[m.SOURCE]  # Source health must not block safe rollback.
         self.execute(rollback=True)
-        self.assertEqual(self.mutations(), [['stop', m.NAME], ['rm', m.NAME]])
+        self.assertEqual(self.mutations(), [['rm', m.NAME]])
         self.assertTrue(m.ROOT.is_dir())
+
+    def test_rollback_has_no_idle_check_stop_admission_race(self):
+        self.execute(apply=True)
+        self.calls.clear()
+        # A listener may accept a worker immediately after any idle observation.
+        original = self.engine
+        def racing_engine(argv, **kwargs):
+            result = original(argv, **kwargs)
+            if argv[2:4] == ['top', m.NAME]:
+                self.busy.add(m.NAME)
+            return result
+        with patch.object(m.subprocess, 'run', side_effect=racing_engine), \
+             self.assertRaisesRegex(RuntimeError, 'Running replica retained'):
+            self.execute(rollback=True)
+        self.assertEqual(self.mutations(), [])
+        self.assertFalse(any(a[2:4] == ['top', m.NAME] for a, _ in self.calls))
+        self.assertIn(m.NAME, self.containers)
 
     def test_symlink_and_private_directory_mode_refused(self):
         m.ROOT.symlink_to(self.root / 'unknown')

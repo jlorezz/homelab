@@ -150,13 +150,14 @@ Existing state is accepted only with this helper's private ownership marker;
 existing containers require its managed label, exact name, mounts, limits and
 configuration. Unknown or partially registered state is never cleared. On
 configuration/start failure cleanup requires the unique creation-attempt label.
-A running new replica is checked for Runner.Worker before stopping/removing it;
-an active job or failed idle check retains it and reports gated rollback. No
-force-removal of the permanent replica is used. Private state stays for inspection. `--rollback` checks the exact managed replica
-and refuses an active `Runner.Worker`, then stops/removes only the new idle
-container. It retains state and never deregisters GitHub runners. The operator
-must remove only the exact new GitHub registration by name if necessary, compare
-unit hashes before/after, and verify listener/GitHub health and OOM/PSI after
-startup. A stopped replica requires private operator inspection rather than an
+A running permanent replica is always retained on failure: an idle inspection
+cannot prevent a job arriving before a stop. No stop or force-removal of the
+permanent replica is performed. `--rollback` refuses every running replica and
+removes only an already-stopped, exactly owned container, retaining private state.
+If a job may be active, let it finish and use a separately verified operator drain
+before stopping it; this helper does not implement a GitHub admission drain.
+The operator must remove only the exact new GitHub registration if needed,
+compare unit hashes before/after, and verify listener/GitHub health and OOM/PSI.
+A stopped replica requires private operator inspection rather than an
 automatic restart. Do not delete retained state until registration cleanup is
 confirmed. No live-host behavior has been validated by the mocked offline tests.

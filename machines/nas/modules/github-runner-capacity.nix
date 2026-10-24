@@ -26,7 +26,7 @@ in {
     browser = pool 1 8192 400;
     static = pool 1 4096 200;
     engineReserveMiB = lib.mkOption { type = lib.types.ints.positive; default = 4096; };
-    previewPool = pool 1 8192 400;
+    previewPool = pool 1 10240 400;
     previewBuild = pool 0 8192 400;
     previewPublish = pool 0 2048 100;
     staging = pool 1 8192 200;
@@ -44,7 +44,7 @@ in {
       { assertion = cfg.ci.count == 1 && cfg.browser.count == 1 && cfg.static.count >= 1; message = "Fixed-port CI/browser lanes must each remain singletons; scale socket-free static instead."; }
       { assertion = cfg.ciPool.count == 1 && cfg.previewPool.count == 1 && cfg.staging.count == 1 && cfg.production.count == 1 && cfg.production.memoryMiB == 12288 && cfg.production.cpuPercent == 400; message = "Aggregate pools are singletons; production resources are frozen for unit equivalence."; }
       { assertion = cfg.ciPool.memoryMiB >= cfg.ci.memoryMiB + cfg.browser.memoryMiB + cfg.static.count * cfg.static.memoryMiB + cfg.engineReserveMiB; message = "CI pool must cover all runner ceilings plus the engine/test-service reserve."; }
-      { assertion = cfg.previewBuild.count <= 1 && cfg.previewPublish.count <= 1 && cfg.previewPool.memoryMiB >= lib.max cfg.previewBuild.memoryMiB cfg.previewPublish.memoryMiB; message = "Preview roles are singleton and exclusive within their aggregate memory budget."; }
+      { assertion = cfg.previewBuild.count <= 1 && cfg.previewPublish.count <= 1 && cfg.previewPool.memoryMiB >= cfg.previewBuild.count * cfg.previewBuild.memoryMiB + cfg.previewPublish.count * cfg.previewPublish.memoryMiB; message = "Preview aggregate must cover both registered workers, including idle listeners."; }
       { assertion = (cfg.previewBuild.count == 1) == (deployment.enable && builtins.elem "preview-build" deployment.environments) && (cfg.previewPublish.count == 1) == (deployment.enable && builtins.elem "preview-publish" deployment.environments); message = "Preview counts must match enabled deployment environments."; }
     ];
     environment.etc."dealpipe-runner-capacity.json".text = builtins.toJSON cfg;

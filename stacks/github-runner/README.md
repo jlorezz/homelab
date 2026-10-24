@@ -18,7 +18,7 @@ stopping idle removed replicas: Portainer deliberately uses `Prune: false`.
 | CI aggregate, including engine/test services | 1 / 1 | 32 GiB | 8 CPUs |
 | CI / browser | 1 each / 1 each | 8 GiB each | 4 CPUs each |
 | static | 1 / 1–4 | 4 GiB each | 2 CPUs each |
-| preview aggregate | 1 / 1 | 8 GiB | 4 CPUs |
+| preview aggregate | 1 / 1 | 10 GiB | 4 CPUs |
 | preview build / publish | 0 each / 0–1 each | 8 / 2 GiB | 4 / 1 CPUs |
 | staging | 1 when environment enabled / 1 | 8 GiB | 2 CPUs |
 | production | 1 when environment enabled / 1 | 12 GiB | 4 CPUs (frozen) |
@@ -45,8 +45,8 @@ minus at least two CPUs for the NAS. `measure-capacity.py` emits inputs, not an
 approval: record cgroup paths, timestamp and load conditions, repeat during busy
 NAS periods. Memory accounting/reclaim can vary; observe PSI/OOM after activation.
 Unmeasured background agents must fit the reserve or be separately budgeted;
-pause heavy agent commands during rollout. A 32/8/8/12 GiB configuration needs
-60 GiB plus R. Shrinking defaults to fit without evidence can just move queue
+pause heavy agent commands during rollout. A 32/10/8/12 GiB configuration needs
+62 GiB plus R. Shrinking defaults to fit without evidence can just move queue
 failures into OOM failures. Stop if the formula fails.
 
 Admission, held for Runner.Worker lifetime before checkout:
@@ -58,6 +58,7 @@ Admission, held for Runner.Worker lifetime before checkout:
   bounded light jobs, so their memory must remain in the aggregate budget.
 * Preview build/publish: exclusive `preview.lock`; one job at a time across these
   two roles, separately budgeted from CI. Their runners can register concurrently.
+  The aggregate covers both container ceilings, including the idle listener.
 * Staging: exclusive `deploy.lock`, its own slice; no socket or shared work volume.
 * Production: unchanged original controller/image/unit, exclusive `heavy.lock`,
   original deploy slice. It still excludes CI stacks and heavy agent commands.

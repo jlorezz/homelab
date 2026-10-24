@@ -166,7 +166,7 @@ No secret rollback copy is made; reissue an expired registration token.
 Generate the literal diff from measured inputs (no prose edits). The preview and
 staging budgets are UNVERIFIED starting estimates; STOP if they or CI job peaks
 are insufficient, and obtain measured/reviewed revised limits. This example uses
-32/8/8/12 GiB aggregates: total 61440 MiB plus the measured reserve. Individual
+32/10/8/12 GiB aggregates: total 63488 MiB plus the measured reserve. Individual
 CI/browser 8 GiB each, two static 4 GiB each, engine reserve 4 GiB total 28672 MiB
 within CI's 32768 MiB. CPU total is 8+4+2+4 = 18 logical CPUs; it requires at least
 20 measured logical CPUs including the two-CPU reserve. These are conditional
@@ -180,7 +180,7 @@ import difflib, json, os, re
 from pathlib import Path
 b = Path(os.environ['BATCH'])
 m = json.loads((b/'measurements.json').read_text())
-assert m['measuredHeadroomMiB'] >= 61440 + m['reserveMiB'], 'Insufficient measured RAM; STOP'
+assert m['measuredHeadroomMiB'] >= 63488 + m['reserveMiB'], 'Insufficient measured RAM; STOP'
 assert m['measuredCpuPercent'] >= 1800, 'Insufficient measured CPU; STOP'
 for key in ('DEPLOY_IMAGE', 'PREVIEW_IMAGE'):
     assert re.fullmatch(r'sha256:[0-9a-f]{64}', os.environ[key]), key
@@ -200,7 +200,7 @@ addition = '''  qnoxslab.githubRunnerCapacity = {
     browser = { count = 1; memoryMiB = 8192; cpuPercent = 400; };
     static = { count = 2; memoryMiB = 4096; cpuPercent = 200; };
     engineReserveMiB = 4096;
-    previewPool = { count = 1; memoryMiB = 8192; cpuPercent = 400; };
+    previewPool = { count = 1; memoryMiB = 10240; cpuPercent = 400; };
     previewBuild = { count = 1; memoryMiB = 8192; cpuPercent = 400; };
     previewPublish = { count = 1; memoryMiB = 2048; cpuPercent = 100; };
     staging = { count = 1; memoryMiB = 8192; cpuPercent = 200; };

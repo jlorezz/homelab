@@ -171,6 +171,21 @@ class ParallelTests(unittest.TestCase):
         original['services']['static-2'] = static
         existing, second = parallel.render(original, 'sha256:'+'1'*64, self.policy)
         lane = second['services']['runner']
+        for key, value in (('privileged', True), ('devices', ['/dev/mem']),
+                           ('env_file', ['controller.env']), ('volumes_from', ['controller']),
+                           ('cgroup_parent', 'system.slice'), ('entrypoint', ['/bin/sh']),
+                           ('command', ['sleep', 'infinity']), ('pid', 'host'),
+                           ('cap_add', ['ALL']), ('extends', {'file': 'other.yml'})):
+            bad = copy.deepcopy(original)
+            bad['services']['runner'][key] = value
+            with self.subTest(setting=key), self.assertRaises(ValueError):
+                parallel.render(bad, 'sha256:'+'1'*64, self.policy)
+        for key in ('DOCKER_HOST', 'AGENT_WORKLOAD_LOCK', 'LD_PRELOAD',
+                    'ACTIONS_RUNNER_HOOK_JOB_STARTED', 'GITHUB_TOKEN'):
+            bad = copy.deepcopy(original)
+            bad['services']['runner']['environment'][key] = 'forbidden'
+            with self.subTest(environment=key), self.assertRaises(ValueError):
+                parallel.render(bad, 'sha256:'+'1'*64, self.policy)
         for unsafe in ('/var/run/docker.sock:/host.sock', '/var/lib/dealpipe-deploy/github-token:/secret:ro'):
             bad = copy.deepcopy(original)
             bad['services']['runner']['volumes'].append(unsafe)
@@ -178,6 +193,7 @@ class ParallelTests(unittest.TestCase):
                 parallel.render(bad, 'sha256:'+'1'*64, self.policy)
         self.assertEqual(lane['environment']['RUNNER_LABEL'], 'dealpipe-nas-ci')
         self.assertEqual(lane['environment']['RUNNER_NAME'], 'dealpipe-nas-ci-2')
+        self.assertEqual(lane['cgroup_parent'], 'dealpipe-ci2.slice')
         self.assertIn('/run/user/1102/dealpipe-ci2/docker.sock:/var/run/docker.sock', lane['volumes'])
         self.assertIn('/var/lib/dealpipe-ci/ci2/work:/var/lib/dealpipe-ci/ci2/work', lane['volumes'])
         self.assertFalse(any(v.startswith('/run/user/1102/docker.sock:') or '/var/run/docker.sock:' in v

@@ -9,6 +9,8 @@ on:
       - stacks/backups/**
       - stacks/dealpipe-recovery/**
       - stacks/github-runner/**
+      - stacks/github-preview-runner/**
+      - stacks/github-deploy-runner/**
       - packages/**
       - machines/nas/modules/agent-platform.nix
       - machines/nas/modules/agent-knowledge.nix
@@ -16,6 +18,7 @@ on:
       - machines/nas/modules/dealpipe-recovery.nix
       - machines/nas/scripts/check-nas-health.py
       - machines/nas/modules/github-runner.nix
+      - machines/nas/modules/github-*.nix
       - flake.nix
       - flake.lock
   workflow_dispatch:
@@ -46,6 +49,7 @@ jobs:
       - run: python -m pip install PyYAML==6.0.3 cryptography==50.0.0 'psycopg[binary]==3.3.5'
       - run: python stacks/agents/doctor.py --source-only
       - run: python -m unittest discover -s stacks/agents/tests -v
+      - run: python -m unittest discover -s stacks/github-runner/tests -v
       - run: sudo apt-get update && sudo apt-get install -y restic
       - run: python -m unittest discover -s stacks/backups/tests -v
       - run: python -m unittest discover -s stacks/dealpipe-recovery/tests -v
@@ -61,11 +65,15 @@ jobs:
       - uses: cachix/install-nix-action@3c6342b75005b9cc7c7d4069c3e9179247c89012 # v31
       - name: Parse changed platform definitions
         run: |
-          for file in flake.nix packages/*.nix machines/nas/modules/agent-platform.nix machines/nas/modules/agent-knowledge.nix machines/nas/modules/offsite-backup.nix machines/nas/modules/dealpipe-recovery.nix machines/nas/modules/github-runner.nix; do
+          for file in flake.nix packages/*.nix machines/nas/modules/agent-platform.nix machines/nas/modules/agent-knowledge.nix machines/nas/modules/offsite-backup.nix machines/nas/modules/dealpipe-recovery.nix machines/nas/modules/github-*.nix; do
             nix-instantiate --parse "$file" >/dev/null
           done
       - name: Evaluate complete NAS generation
         run: nix eval --raw .#nixosConfigurations.nas.config.system.build.toplevel.drvPath
+      - name: Compare evaluated production unit with pre-parallelism source
+        run: |
+          git fetch --no-tags origin 4bfead617fc26e6d634b1696061729716127822b
+          bash stacks/github-runner/production-equivalence.sh 4bfead617fc26e6d634b1696061729716127822b "$RUNNER_TEMP/production-equivalence"
       - name: Build and check exact application runtimes
         run: nix build .#agent-runtimes --print-build-logs
       - name: Build development image when requested

@@ -10,10 +10,12 @@ expression = '''let
   c = expanded.config;
 in {
   disabled = !(base.config.systemd.user.services ? docker-ci2);
-  unit = c.systemd.user.services.docker-ci2;
+  unit = { inherit (c.systemd.user.services.docker-ci2)
+    unitConfig serviceConfig environment restartIfChanged stopIfChanged; };
   child = c.systemd.user.slices.dealpipe-ci2.sliceConfig;
   parent = c.systemd.slices.user-1102.sliceConfig;
-  browser = c.systemd.user.services.docker-browser;
+  browser = { inherit (c.systemd.user.services.docker-browser)
+    environment restartIfChanged stopIfChanged; };
   daemon = builtins.readFile (builtins.head (builtins.match ".*--config-file=(.*)" c.systemd.user.services.docker-ci2.serviceConfig.ExecStart));
 }'''
 result = json.loads(subprocess.check_output(['nix', 'eval', '--impure', '--json', '--expr', expression]))

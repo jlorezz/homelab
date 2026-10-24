@@ -18,6 +18,7 @@ in {
     environment restartIfChanged stopIfChanged; };
   daemon = c.qnoxslab.githubRunnerCI2.daemonSettings;
   wrapper = c.qnoxslab.githubRunnerCI2.namespaceSetupScript;
+  launcher = c.qnoxslab.githubRunnerCI2.launcherScript;
 }'''
 result = json.loads(subprocess.check_output(['nix', 'eval', '--impure', '--json', '--expr', expression]))
 assert result['disabled']
@@ -34,7 +35,7 @@ assert env['DOCKERD_ROOTLESS_ROOTLESSKIT_STATE_DIR'] == '/run/user/1102/dealpipe
 assert env['XDG_RUNTIME_DIR'] == '%t/dealpipe-ci2'
 assert env['DOCKERD_ROOTLESS_ROOTLESSKIT_FLAGS'] == '--copy-up=/var/lib/dealpipe-ci'
 assert env['DOCKERD'].startswith('/nix/store/') and env['DOCKERD'].endswith('-ci2-dockerd-namespace')
-assert '/bin/dockerd-rootless --config-file=/nix/store/' in unit['serviceConfig']['ExecStart']
+assert '-ci2-rootless-launcher --config-file=/nix/store/' in unit['serviceConfig']['ExecStart']
 assert result['browser']['environment']['XDG_RUNTIME_DIR'] == '%t/dealpipe-browser'
 assert not result['browser']['restartIfChanged'] and not result['browser']['stopIfChanged']
 daemon = result['daemon']
@@ -44,7 +45,11 @@ assert daemon['hosts'] == ['unix:///run/user/1102/dealpipe-ci2/docker.sock']
 assert daemon['cgroup-parent'] == 'dealpipe-ci2.slice'
 wrapper = result['wrapper']
 assert '_DOCKERD_ROOTLESS_CHILD:-' in wrapper
-assert '/proc/self/ns/$ns' in wrapper and '/proc/1/ns/$ns' in wrapper
+assert '/proc/self/ns/$ns' in wrapper and '/proc/1/' not in wrapper
+assert 'CI2_PARENT_USER_NS' in wrapper and 'CI2_PARENT_MNT_NS' in wrapper
+assert '/bin/id -ru)' in result['launcher'] and '= 1102' in result['launcher']
+assert '/bin/readlink /proc/self/ns/user' in result['launcher']
+assert '/bin/readlink /proc/self/ns/mnt' in result['launcher']
 assert '/bin/id -ru' in wrapper
 assert '/bin/unlink "$base/$name"' in wrapper and '/bin/rm' not in wrapper
 assert 'mount --bind "$base/ci2/$name" "$base/$name"' in wrapper

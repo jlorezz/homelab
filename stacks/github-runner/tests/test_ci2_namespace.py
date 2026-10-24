@@ -43,7 +43,7 @@ elif command == 'readlink':
     path = args[0]
     if path.startswith('/proc/'):
         ns = path.rsplit('/', 1)[-1]
-        print(ns + (':host' if '/1/' in path or os.environ.get('MOCK_HOST_NS') == ns else ':child'))
+        print(ns + (':[1]' if os.environ.get('MOCK_HOST_NS') == ns else ':[2]'))
     else: print(os.readlink(path))
 elif command == 'findmnt':
     if 'TARGET,FSTYPE' in args: print(os.environ['MOCK_BASE'] + ' ' + os.environ.get('MOCK_FS', 'tmpfs'))
@@ -62,7 +62,8 @@ else: sys.exit(90)
         source = re.sub(r'\$\{(?:pkgs.coreutils|pkgs.util-linux|docker)\}/bin/', str(self.bin) + '/', source)
         self.script = self.root / 'script'
         self.script.write_text(source)
-        self.env = dict(os.environ, MOCK_LOG=str(self.log), MOCK_BASE=str(self.base), _DOCKERD_ROOTLESS_CHILD='1')
+        self.env = dict(os.environ, MOCK_LOG=str(self.log), MOCK_BASE=str(self.base), _DOCKERD_ROOTLESS_CHILD='1',
+                        CI2_PARENT_USER_NS='user:[1]', CI2_PARENT_MNT_NS='mnt:[1]')
 
     def run_script(self):
         return subprocess.run(['bash', str(self.script), '--config-file=fixture'], env=self.env,
@@ -94,6 +95,14 @@ else: sys.exit(90)
     def test_copyup_mount_required(self):
         self.env['MOCK_FS'] = 'ext4'
         self.refused('missing copy-up tmpfs')
+
+    def test_missing_or_invalid_parent_snapshot_refuses_before_mutation(self):
+        for field in ('CI2_PARENT_USER_NS', 'CI2_PARENT_MNT_NS'):
+            saved = self.env.pop(field)
+            self.refused('invalid parent')
+            self.env[field] = 'unverified'
+            self.refused('invalid parent')
+            self.env[field] = saved
 
     def test_shared_propagation_refused(self):
         self.env['MOCK_PROPAGATION'] = 'shared,slave'

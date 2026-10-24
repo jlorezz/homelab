@@ -40,7 +40,7 @@ creates a private tmpfs parent whose entries point into a `.ro*` backing mount.
 That upstream reference describes the algorithm, not proof of the NAS runtime.
 
 Before any filesystem mutation the wrapper requires the child marker, real UID0,
-user AND mount namespaces different from PID1, an exact tmpfs parent mount with
+user AND mount namespaces different from the launcher snapshots, an exact tmpfs parent mount with
 private/slave propagation, and both canonical paths as copy-up symlinks into the
 same backing directory. Physical sources must be directories. It unlinks ONLY
 those two private symlinks, creates private destinations, binds the CI2 sources,
@@ -62,7 +62,10 @@ UNVERIFIED live gates, reserved for the parent/operator after review:
   Nix is unavailable in the implementation worker; the earlier parent evaluation
   predates this path fix and does not validate this new wrapper.
 - Verify the actual pinned RootlessKit copy-up layout and Docker DOCKERD handoff.
-  A missing PID1 namespace read permission or differing layout must fail closed.
+  The launcher snapshots its own namespaces as UID1102 before entering RootlessKit.
+  UID1102 cannot read host PID1 namespace links on this NAS; the wrapper therefore
+  compares with those snapshots and does not request additional proc permissions.
+  Missing/invalid snapshots or an unchanged namespace must fail closed.
   Never test the wrapper directly on the host, even with a forged child marker.
 - In the real RootlessKit child, verify mount/user/net namespace separation,
   canonical mounts' device+inode identity with the CI2 physical sources, and
@@ -321,27 +324,8 @@ roles with heavy.lock and prove incremental memory fits. That would require its
 own reviewed controller/unit change; production must remain unchanged. No fresh
 preview/staging peak or overlap evidence exists here, so those gates stay closed.
 
-## Source-only path compatibility handoff (2026-10-24)
 
-Repository: `jlorezz/homelab`; issue #16 / PR #17 context. Implementation base:
-`db7156e676637264280dbe4718a8d3dc959f6420`; branch:
-`t3/ci2-docker-path-compatibility`. Scope is CI2's module, offline renderer,
-focused tests and these path-contract notes. Acceptance for this source change:
-canonical DockerRootDir/work paths over separate physical CI2 backing, refusal
-before mutation for a host invocation or real canonical directories, unchanged
-existing lane paths/ceilings and strict input allowlists. Actual runtime issue
-acceptance remains gated by the UNVERIFIED live checks above.
-
-Verification uses the existing `/tmp/homelab-ci2-validation/bin/python` environment
-and workload admission, with `CC='/tmp/ci-custody-toolchain/ziglang/zig cc'` for
-native offline fixtures. Runner suite: 61 tests; agent suite: 103 tests; source
-configuration doctor and `git diff --check`: pass. Namespace commands in the new
-11-test fixture are mocked, including mutation commands; these tests never run
-the deployed wrapper on the host or create real mounts. System Python initially
-lacked PyYAML; the existing validation environment passed without installation.
-Nix evaluation/build and actual Docker/RootlessKit namespace isolation were not
-performed (Nix unavailable in this worker). No host/SSH, engine/container/service,
-activation, push, PR mutation or merge operation was performed. Provider spend:
-unknown. Return the local implementation commit to the parent for review and the
-reserved runtime gates; do not treat earlier parent evaluation as this commit's
-Nix or runtime evidence.
+Offline namespace tests mock every command, including mount and unlink; they never
+create real mounts. Passing these fixtures proves refusal and command contracts,
+not live isolation. The generated unit, launcher, copy-up layout, canonical binds
+and actual Worker lifecycle still require the runtime evidence described above.

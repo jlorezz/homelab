@@ -2,6 +2,17 @@
 let
   cfg = config.qnoxslab.githubRunnerCI2;
   docker = config.virtualisation.docker.rootless.package;
+  # Snapshot our own namespaces before RootlessKit. UID1102 cannot inspect
+  # host PID1 namespace links on this NAS, and needs no permission to do so.
+  launcherScript = ''
+    set -eu
+    [ "$(${pkgs.coreutils}/bin/id -ru)" = 1102 ] || { echo "CI2 launcher requires UID1102" >&2; exit 1; }
+    CI2_PARENT_USER_NS=$(${pkgs.coreutils}/bin/readlink /proc/self/ns/user)
+    CI2_PARENT_MNT_NS=$(${pkgs.coreutils}/bin/readlink /proc/self/ns/mnt)
+    export CI2_PARENT_USER_NS CI2_PARENT_MNT_NS
+    exec ${docker}/bin/dockerd-rootless "$@"
+  '';
+  launcher = pkgs.writeShellScript "ci2-rootless-launcher" launcherScript;
   # Only the official rootless script's child may prepare canonical paths.
   # RootlessKit tmpfs+symlink copy-up keeps the physical host directories intact.
   namespaceScript = ''
@@ -11,8 +22,12 @@ let
     [ "$(${pkgs.coreutils}/bin/id -ru)" = 0 ] || fail "real UID must be namespace root"
     for ns in user mnt; do
       ours=$(${pkgs.coreutils}/bin/readlink "/proc/self/ns/$ns")
-      host=$(${pkgs.coreutils}/bin/readlink "/proc/1/ns/$ns")
-      [ -n "$ours" ] && [ -n "$host" ] && [ "$ours" != "$host" ] || fail "host $ns namespace"
+      case "$ns" in
+        user) parent="''${CI2_PARENT_USER_NS:-}" ;;
+        mnt) parent="''${CI2_PARENT_MNT_NS:-}" ;;
+      esac
+      [[ "$parent" =~ ^$ns:\[[0-9]+\]$ ]] || fail "invalid parent $ns snapshot"
+      [ -n "$ours" ] && [ "$ours" != "$parent" ] || fail "host $ns namespace"
     done
     base=/var/lib/dealpipe-ci
     # Require an exact private/slave tmpfs mount, not a directory on host storage.
@@ -64,6 +79,12 @@ in {
       description = "UNVERIFIED containment ceiling including runner/test services, not measured demand.";
     };
     engineCpuPercent = lib.mkOption { type = lib.types.ints.positive; default = 400; };
+    launcherScript = lib.mkOption {
+      type = lib.types.str;
+      readOnly = true;
+      internal = true;
+      default = launcherScript;
+    };
     namespaceSetupScript = lib.mkOption {
       type = lib.types.str;
       readOnly = true;
@@ -126,7 +147,7 @@ in {
         RuntimeDirectory = "dealpipe-ci2";
         RuntimeDirectoryMode = "0700";
         # Explicit separate config: never inherit the main engine daemon.json.
-        ExecStart = "${docker}/bin/dockerd-rootless --config-file=${pkgs.writeText "ci2-daemon.json" (builtins.toJSON cfg.daemonSettings)}";
+        ExecStart = "${launcher} --config-file=${pkgs.writeText "ci2-daemon.json" (builtins.toJSON cfg.daemonSettings)}";
       };
     };
     systemd.tmpfiles.rules = [

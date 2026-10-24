@@ -2,7 +2,9 @@
 let
   cfg = config.qnoxslab.githubDeploymentRunners;
   docker = config.virtualisation.docker.package;
+  capacity = config.qnoxslab.githubRunnerCapacity;
   controller = ../../../stacks/github-deploy-runner/controller.py;
+  isolatedController = ../../../stacks/github-preview-runner/controller.py;
   deniedIPv4 = "{ 0.0.0.0/8, 10.0.0.0/8, 100.64.0.0/10, 127.0.0.0/8, 169.254.0.0/16, 172.16.0.0/12, 192.168.0.0/16, 224.0.0.0/4, 240.0.0.0/4 }";
 in
 {
@@ -13,8 +15,13 @@ in
       default = "";
       description = "Immutable sha256 image ID printed by stacks/github-deploy-runner/build-image.py on the NAS.";
     };
+    previewImage = lib.mkOption {
+      type = lib.types.str;
+      default = "";
+      description = "Separately built immutable preview image; never changes the production image.";
+    };
     environments = lib.mkOption {
-      type = lib.types.listOf (lib.types.enum [ "staging" "production" ]);
+      type = lib.types.listOf (lib.types.enum [ "staging" "production" "preview-build" "preview-publish" ]);
       default = [ "staging" ];
       description = "Enable production only after staging acceptance and human release configuration.";
     };
@@ -26,19 +33,42 @@ in
   };
   config = lib.mkIf cfg.enable {
     assertions = [
+      { assertion = capacity.enable;
+        message = "Reconcile live deployment drift and measure capacity before enabling controllers."; }
+      { assertion = !(builtins.any (e: lib.hasPrefix "preview-" e) cfg.environments) || builtins.match "sha256:[0-9a-f]{64}" cfg.previewImage != null;
+        message = "Build and pin the separate preview image before enabling preview roles."; }
       { assertion = builtins.match "sha256:[0-9a-f]{64}" cfg.image != null;
         message = "Build the deployment runner image first and configure its immutable image ID."; }
       { assertion = config.qnoxslab.githubRunner.enable;
         message = "Deployment admission requires the existing CI workload lock and CI isolation."; }
     ];
-    systemd.tmpfiles.rules = [ "d /var/lib/dealpipe-deploy 0700 root root -" ];
-    # Same admission ceilings as one existing browser lane; deployment hooks take
-    # the shared workload lock exclusively, so builds cannot overlap CI workloads.
+    systemd.tmpfiles.rules = [
+      "d /var/lib/dealpipe-deploy 0700 root root -"
+      "f /var/lib/agent-workloads/preview.lock 0666 root root -"
+      "f /var/lib/agent-workloads/deploy.lock 0666 root root -"
+    ];
+    # Production slice and original controller stay unchanged. Staging has its own budget.
     systemd.slices.dealpipe-deploy.sliceConfig = {
       CPUQuota = "400%";
       CPUWeight = 20;
       MemoryHigh = "12G";
       MemoryMax = "12G";
+      MemorySwapMax = 0;
+      TasksMax = 4096;
+    };
+    systemd.slices.dealpipe-staging.sliceConfig = {
+      CPUQuota = "${toString capacity.staging.cpuPercent}%";
+      CPUWeight = 20;
+      MemoryHigh = "${toString capacity.staging.memoryMiB}M";
+      MemoryMax = "${toString capacity.staging.memoryMiB}M";
+      MemorySwapMax = 0;
+      TasksMax = 4096;
+    };
+    systemd.slices.dealpipe-preview.sliceConfig = {
+      CPUQuota = "${toString capacity.previewPool.cpuPercent}%";
+      CPUWeight = 20;
+      MemoryHigh = "${toString capacity.previewPool.memoryMiB}M";
+      MemoryMax = "${toString capacity.previewPool.memoryMiB}M";
       MemorySwapMax = 0;
       TasksMax = 4096;
     };
@@ -87,7 +117,7 @@ in
       serviceConfig = {
         Type = "simple";
         LoadCredential = [ "github-token:${cfg.credentialFile}" ];
-        ExecStart = "${pkgs.python3}/bin/python3 ${controller} --environment ${environment} --image ${cfg.image} --credential %d/github-token";
+        ExecStart = "${pkgs.python3}/bin/python3 ${if environment == "production" then controller else isolatedController} --environment ${environment} --image ${if lib.hasPrefix "preview-" environment then cfg.previewImage else cfg.image} --credential %d/github-token${lib.optionalString (environment != "production") (let limits = if environment == "staging" then capacity.staging else if environment == "preview-build" then capacity.previewBuild else capacity.previewPublish; in " --memory-mib ${toString limits.memoryMiB} --cpu-percent ${toString limits.cpuPercent}")}";
         Restart = "always";
         # A controller creates a fresh registration/container after each job.
         RestartSec = 10;

@@ -12,6 +12,8 @@ from urllib.parse import urlencode
 
 import yaml
 
+from capacity import render
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "agents"))
 from deploy import Portainer
 
@@ -38,7 +40,11 @@ def main():
     parser.add_argument("--url", default="https://nas.tailb80645.ts.net:9443")
     parser.add_argument("--connect-address", default="100.125.180.36")
     parser.add_argument("--prepare-only", action="store_true", help="Create environment and build image without registering a runner")
+    parser.add_argument("--capacity-file", default="/etc/dealpipe-runner-capacity.json")
     args = parser.parse_args()
+    # Fail before API calls or builds if measured host configuration is missing.
+    capacity = json.loads(Path(args.capacity_file).read_text())
+    rendered = render(yaml.safe_load((Path(__file__).resolve().parent / "compose.yaml").read_text()), capacity)
     directory = Path(__file__).resolve().parent
     api = Portainer(args.url, args.token_file, args.connect_address)
     endpoints = api.request("GET", "/endpoints")
@@ -87,7 +93,7 @@ def main():
     if args.prepare_only:
         return
     require_idle(api, endpoint_id)
-    compose = (directory / "compose.yaml").read_text()
+    compose = yaml.safe_dump(rendered, sort_keys=False)
     # Validate before transmitting; the original YAML remains reviewable in Portainer.
     yaml.safe_load(compose)
     environment = [{"name": "RUNNER_IMAGE", "value": image}]

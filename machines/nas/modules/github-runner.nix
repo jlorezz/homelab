@@ -2,8 +2,10 @@
 let
   cfg = config.qnoxslab.githubRunner;
   docker = config.virtualisation.docker.package;
+  capacity = config.qnoxslab.githubRunnerCapacity;
 in
 {
+  imports = [ ./github-runner-capacity.nix ];
   options.qnoxslab.githubRunner.enable = lib.mkEnableOption "dedicated rootless Docker engine for Dealpipe CI";
   config = lib.mkIf cfg.enable {
     users.groups.dealpipe-ci.gid = 1102;
@@ -39,10 +41,10 @@ in
     # Aggregate ceilings cover three CI lanes, the engine, and all test services.
     # These are admission limits, not measured build requirements.
     systemd.slices."user-1102".sliceConfig = {
-      CPUQuota = "800%";
+      CPUQuota = "${toString capacity.ciPool.cpuPercent}%";
       CPUWeight = 20;
-      MemoryHigh = "28G";
-      MemoryMax = "32G";
+      MemoryHigh = "${toString (builtins.div (capacity.ciPool.memoryMiB * 7) 8)}M";
+      MemoryMax = "${toString capacity.ciPool.memoryMiB}M";
       MemorySwapMax = 0;
       TasksMax = 8192;
       IOWeight = 20;
@@ -127,7 +129,10 @@ in
       "d /var/lib/dealpipe-ci/static/runner 0700 dealpipe-ci dealpipe-ci -"
       "d /var/lib/dealpipe-ci/static/home 0700 dealpipe-ci dealpipe-ci -"
       "d /var/lib/dealpipe-ci/static/work 0700 dealpipe-ci dealpipe-ci -"
-    ] ++ lib.optionals (!(config.qnoxslab.agents.enable or false)) [
+    ] ++ lib.concatMap (index: map (directory:
+      "d /var/lib/dealpipe-ci/static-${toString index}/${directory} 0700 dealpipe-ci dealpipe-ci -"
+    ) [ "runner" "home" "work" ]) (lib.range 2 (if capacity.enable then capacity.static.count else 1))
+    ++ lib.optionals (!(config.qnoxslab.agents.enable or false)) [
       "d /var/lib/agent-workloads 0755 root root -"
       "f /var/lib/agent-workloads/heavy.lock 0666 root root -"
     ];

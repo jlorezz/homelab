@@ -9,6 +9,7 @@ import time
 
 sys.path.insert(0, "/usr/local/lib/agent-platform")
 from workload import process_identity
+from custody import verify_worker
 
 
 def worker_ancestor():
@@ -27,6 +28,11 @@ def main():
     identity = process_identity(pid)
     if identity is None:
         raise RuntimeError("Runner.Worker has exited")
+    if "AGENT_CI_PROFILE" in os.environ:
+        # Measured lanes never fall back to a detached lease, including completion.
+        verify_worker(pid)
+        print("CI kernel admission verified")
+        return
     directory = Path("/tmp/agent-ci-leases")
     directory.mkdir(mode=0o700, exist_ok=True)
     ready = directory / f"{pid}-{identity}.ready"
@@ -38,16 +44,6 @@ def main():
     # Legacy/unconfigured images remain globally exclusive. Shared admission
     # requires an explicit lane configuration, never an implicit new default.
     admission = ["--shared"] if os.environ.get("AGENT_CI_EXCLUSIVE") == "0" else []
-    profile = os.environ.get("AGENT_CI_PROFILE")
-    if profile:
-        if os.environ.get("AGENT_CI_EXCLUSIVE") != "0":
-            raise RuntimeError("Measured lanes require shared global admission")
-        admission += ["--admission-profile", profile]
-        engine = os.environ.get("AGENT_CI_ENGINE_LOCK")
-        if engine:
-            admission += ["--engine-lock", engine]
-        elif os.environ.get("AGENT_CI_SOCKET_REQUIRED") == "1":
-            raise RuntimeError("Socket-bearing lane requires an engine lock")
     child = subprocess.Popen([
         sys.executable, "/usr/local/lib/agent-platform/workload.py", "lease",
         *admission, "--owner-pid", str(pid), "--owner-identity", identity,

@@ -37,7 +37,7 @@ def lock(path, seconds, shared=False):
                 if time.monotonic() >= deadline:
                     raise TimeoutError("Heavy workload queue budget exhausted")
                 time.sleep(min(0.1, max(0, deadline - time.monotonic())))
-        yield
+        yield fd
     finally:
         os.close(fd)
 
@@ -208,7 +208,7 @@ def capacity_reservation(directory, policy_path, profile, meminfo, pool):
             Path(name).unlink()
             raise
     try:
-        yield
+        yield fd
     finally:
         # Keep the inode until a later holder prunes it under the mutex.
         os.close(fd)

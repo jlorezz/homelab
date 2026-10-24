@@ -206,7 +206,13 @@ class ParallelTests(unittest.TestCase):
         static['mem_limit'] = static['memswap_limit'] = '8g'
         static['environment']['RUNNER_NAME'] = 'dealpipe-nas-static-2'
         original['services']['static-2'] = static
+        # Reconciled compose.yaml input already carries the engine-lane opt-in.
+        original['services']['runner']['environment']['AGENT_CI_NETWORK_HYGIENE'] = '1'
         existing, second = parallel.render(original, 'sha256:'+'1'*64, self.policy)
+        self.assertEqual({name: lane['environment']['AGENT_CI_NETWORK_HYGIENE']
+                          for name, lane in existing['services'].items()},
+                         {'runner': '1', 'browser': '1', 'static': '0', 'static-2': '0'})
+        self.assertEqual(second['services']['runner']['environment']['AGENT_CI_NETWORK_HYGIENE'], '1')
         lane = second['services']['runner']
         for key, value in (('privileged', True), ('devices', ['/dev/mem']),
                            ('env_file', ['controller.env']), ('volumes_from', ['controller']),

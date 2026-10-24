@@ -19,11 +19,14 @@ import os
 from pathlib import Path
 import re
 import subprocess
+import time
 
 CI_NETWORK = re.compile(r"(?:supabase_network_)?ci-[0-9]{8,}-[0-9]+-[a-z0-9][a-z0-9_.-]*\Z")
 SOCKET = Path("/var/run/docker.sock")
 MIN_AGE_SECONDS = 60
-DOCKER_TIMEOUT = 30
+DOCKER_TIMEOUT = 15
+# Whole sweep, so a slow engine cannot hold the lane's admission for long.
+SWEEP_SECONDS = 60
 
 
 def created_at(value):
@@ -51,13 +54,17 @@ def candidates(networks, now, min_age=MIN_AGE_SECONDS):
         yield network["Id"], name
 
 
-def reap(now=None, run=docker):
+def reap(now=None, run=docker, clock=time.monotonic, budget=SWEEP_SECONDS):
+    deadline = clock() + budget
     now = now or datetime.now(timezone.utc)
     ids = run("network", "ls", "--quiet", "--no-trunc").split()
     if not ids:
         return []
     removed = []
     for network_id, name in candidates(json.loads(run("network", "inspect", *ids)), now):
+        if clock() >= deadline:
+            print(f"CI network hygiene stopped at its {budget}s budget; the next job continues")
+            break
         try:
             # Removal by immutable ID; Docker itself refuses a network in use.
             run("network", "rm", network_id)

@@ -72,6 +72,13 @@ class NetworkReaperTests(unittest.TestCase):
                             refuse={"id-ci-40064022103-1-build-0_default"})
         self.assertEqual(network_reaper.reap(NOW, run=docker), ["ci-40064022225-1-build-0_default"])
 
+    def test_sweep_stops_at_its_budget(self):
+        docker = FakeDocker([network(f"ci-4006402210{i}-1-build-0_default") for i in range(5)])
+        ticks = iter([0, 0, 10, 61, 62, 63])
+        with patch("builtins.print"):
+            removed = network_reaper.reap(NOW, run=docker, clock=lambda: next(ticks), budget=60)
+        self.assertEqual(len(removed), 2)
+
     def test_timestamp_formats(self):
         self.assertEqual(network_reaper.created_at("2026-10-24T13:00:00Z"),
                          datetime(2026, 10, 24, 13, tzinfo=timezone.utc))

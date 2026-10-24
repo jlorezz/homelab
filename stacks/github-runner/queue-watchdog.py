@@ -8,8 +8,8 @@ Runner re-registration or replacement during an operator batch can orphan jobs
 the same way.
 
 Report-only by default; exit status 1 means orphans were found. `--redispatch`
-cancels and reruns failed jobs of an affected run, only when none of the run's
-jobs is still in progress, so running work is never cancelled. Uses the
+cancels and reruns failed jobs of an affected run only when, re-read just
+before cancelling, none of the run's jobs is in progress. Uses the
 caller's `gh` login, which must be allowed to list repository runners.
 """
 
@@ -31,12 +31,27 @@ def api(path):
     return json.loads(gh("api", path))
 
 
+def pages(path, key, call):
+    """Every item of a paginated list endpoint; a partial view could hide active jobs."""
+    items, page = [], 1
+    while True:
+        batch = call(f"{path}{'&' if '?' in path else '?'}per_page=100&page={page}")[key]
+        items.extend(batch)
+        if len(batch) < 100:
+            return items
+        page += 1
+
+
+def run_jobs(repository, run_id, call=api):
+    return pages(f"repos/{repository}/actions/runs/{run_id}/jobs?filter=latest", "jobs", call)
+
+
 def parse_time(value):
     return datetime.fromisoformat(value.replace("Z", "+00:00"))
 
 
 def idle_label_sets(repository, call=api):
-    runners = call(f"repos/{repository}/actions/runners?per_page=100")["runners"]
+    runners = pages(f"repos/{repository}/actions/runners", "runners", call)
     return [{label["name"] for label in r["labels"]}
             for r in runners if r["status"] == "online" and not r["busy"]]
 
@@ -45,9 +60,8 @@ def orphans(repository, now, threshold, call=api):
     idle = idle_label_sets(repository, call)
     found = []
     for status in ("queued", "in_progress"):
-        runs = call(f"repos/{repository}/actions/runs?status={status}&per_page=100")["workflow_runs"]
-        for run in runs:
-            jobs = call(f"repos/{repository}/actions/runs/{run['id']}/jobs?filter=latest&per_page=100")["jobs"]
+        for run in pages(f"repos/{repository}/actions/runs?status={status}", "workflow_runs", call):
+            jobs = run_jobs(repository, run["id"], call)
             busy = any(job["status"] == "in_progress" for job in jobs)
             for job in jobs:
                 if job["status"] != "queued" or not job["labels"]:
@@ -64,6 +78,10 @@ def orphans(repository, now, threshold, call=api):
 
 
 def redispatch(repository, run_id, run=gh, call=api, sleep=time.sleep, timeout=180):
+    # Re-read every job immediately before cancelling: a queued job may have
+    # started since the scan, and cancelling would kill that running work.
+    if any(job["status"] == "in_progress" for job in run_jobs(repository, run_id, call)):
+        return False
     run("run", "cancel", str(run_id), "-R", repository)
     deadline = time.monotonic() + timeout
     while call(f"repos/{repository}/actions/runs/{run_id}")["status"] != "completed":
@@ -72,6 +90,7 @@ def redispatch(repository, run_id, run=gh, call=api, sleep=time.sleep, timeout=1
         sleep(5)
     # Reruns failed and cancelled jobs with their dependents; passed jobs stay.
     run("run", "rerun", str(run_id), "--failed", "-R", repository)
+    return True
 
 
 def main(argv=None):
@@ -89,8 +108,9 @@ def main(argv=None):
             if any(item["runHasActiveJobs"] for item in found if item["run"] == run_id):
                 print(json.dumps({"run": run_id, "action": "skipped: other jobs still running"}))
                 continue
-            redispatch(args.repository, run_id)
-            print(json.dumps({"run": run_id, "action": "cancelled and reran failed jobs"}))
+            done = redispatch(args.repository, run_id)
+            print(json.dumps({"run": run_id, "action": "cancelled and reran failed jobs" if done
+                              else "skipped: a job started since the scan"}))
     return 1 if found else 0
 
 

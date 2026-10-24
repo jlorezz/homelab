@@ -27,14 +27,20 @@ class Api:
     def __init__(self, runners, runs, jobs):
         self.runners, self.runs, self.jobs, self.status = runners, runs, jobs, {}
 
+    @staticmethod
+    def page(items, path):
+        number = int(path.rsplit("page=", 1)[1])
+        return items[(number - 1) * 100:number * 100]
+
     def __call__(self, path):
         if path.startswith(f"repos/{REPO}/actions/runners"):
-            return {"runners": self.runners}
+            return {"runners": self.page(self.runners, path)}
         if "/actions/runs?status=" in path:
             status = path.split("status=")[1].split("&")[0]
-            return {"workflow_runs": [{"id": r} for r, s in self.runs.items() if s == status]}
-        if path.endswith("/jobs?filter=latest&per_page=100"):
-            return {"jobs": self.jobs[int(path.split("/runs/")[1].split("/")[0])]}
+            runs = [{"id": r} for r, s in self.runs.items() if s == status]
+            return {"workflow_runs": self.page(runs, path)}
+        if "/jobs?filter=latest&" in path:
+            return {"jobs": self.page(self.jobs[int(path.split("/runs/")[1].split("/")[0])], path)}
         run_id = int(path.rsplit("/", 1)[1])
         return {"status": self.status.get(run_id, "completed")}
 
@@ -62,15 +68,28 @@ class QueueWatchdogTests(unittest.TestCase):
                    {7: "in_progress"}, jobs)
         self.assertEqual(watchdog.orphans(REPO, NOW, timedelta(minutes=15), call), [])
 
+    def test_active_job_on_a_later_page_blocks_cancellation(self):
+        jobs = [job(1, "queued", ["dealpipe-nas-ci"])] + [job(i, "completed", ["x"]) for i in range(2, 150)]
+        jobs.append(job(150, "in_progress", ["dealpipe-nas-browser"]))
+        call = Api([runner("dealpipe-nas-ci", ["dealpipe-nas-ci"])], {3: "queued"}, {3: jobs})
+        found = watchdog.orphans(REPO, NOW, timedelta(minutes=15), call)
+        self.assertEqual([(f["job"], f["runHasActiveJobs"]) for f in found], [(1, True)])
+
+    def test_redispatch_refuses_when_a_job_started_since_the_scan(self):
+        call = Api([], {}, {9: [job(1, "in_progress", ["dealpipe-nas-ci"])]})
+        commands = []
+        self.assertFalse(watchdog.redispatch(REPO, 9, run=lambda *a: commands.append(a), call=call))
+        self.assertEqual(commands, [])
+
     def test_redispatch_cancels_waits_then_reruns_failed_only(self):
-        call = Api([], {}, {})
+        call = Api([], {}, {9: [job(1, "queued", ["dealpipe-nas-ci"])]})
         call.status = {9: "in_progress"}
         commands = []
 
         def sleep(_):
             call.status[9] = "completed"
 
-        watchdog.redispatch(REPO, 9, run=lambda *a: commands.append(a), call=call, sleep=sleep)
+        self.assertTrue(watchdog.redispatch(REPO, 9, run=lambda *a: commands.append(a), call=call, sleep=sleep))
         self.assertEqual(commands, [("run", "cancel", "9", "-R", REPO),
                                     ("run", "rerun", "9", "--failed", "-R", REPO)])
 

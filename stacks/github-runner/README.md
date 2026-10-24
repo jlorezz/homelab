@@ -211,3 +211,9 @@ files are refused for operator inspection. There is no recursive chown, cache
 purge, home deletion or registration-state change. Repair/build/activation and
 live CI validation require the parent/operator's separate runtime work; source
 tests do not prove that the setup action or restored cache will succeed.
+
+The existing registered static-2 runner has a bounded, operator-only 12 GiB
+repair path in [static2-repair-operator.md](static2-repair-operator.md). The old
+8 GiB first-phase provisioning default remains unchanged; 8 GiB failed real
+tsgo/lint according to the 2026-10-24 operator incident receipt. The selected
+12 GiB ceiling remains unverified until representative real CI passes.

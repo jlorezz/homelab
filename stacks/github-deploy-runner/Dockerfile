@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && chown -R 1001:123 /runner /home/ci /work /opt/hostedtoolcache
 COPY entrypoint.sh /usr/local/bin/deploy-runner
 COPY job-hook.py /usr/local/lib/agent-platform/job-hook.py
+COPY custody.py /usr/local/lib/agent-platform/custody.py
 COPY workload.py /usr/local/lib/agent-platform/workload.py
 RUN printf '#!/bin/bash\nexec python3 /usr/local/lib/agent-platform/job-hook.py started\n' > /usr/local/bin/ci-job-started.sh \
     && printf '#!/bin/bash\nexec python3 /usr/local/lib/agent-platform/job-hook.py completed\n' > /usr/local/bin/ci-job-completed.sh \

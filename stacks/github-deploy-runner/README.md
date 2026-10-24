@@ -7,6 +7,14 @@ network, reusable home/work volume or controller credential mount. A shared
 non-secret workload-lock inode is the only host bind mount. The release hook
 takes that lock exclusively while a job runs.
 
+Both deployment and preview image builders package the shared hook together with
+`custody.py` and `workload.py`. The hook imports custody even for exclusive release
+workers; omitting it prevents jobs from starting. The offline regression check
+`python3 -m unittest discover -s stacks/github-runner/tests -p test_release_image.py -v`
+checks each builder's actual context and Dockerfile copies in a fresh interpreter.
+It does not certify a built image or live worker admission. Rebuild and verify a
+staging worker before promoting the image to production.
+
 The host controller gets a fresh short-lived repository registration token,
 passes it to the entrypoint over stdin, waits for one ephemeral runner job, and
 destroys the container. The broad runner-administration credential remains in a
@@ -70,8 +78,11 @@ the controller credential through the root-only credential file and restart an
 idle service. The next job starts with a fresh home and filesystem. No Vercel
 credentials are stored in the image or Nix definitions.
 
-When the NAS is unavailable, the Dealpipe manual workflow has an explicit hosted
-runner option. Disable/cancel the queued NAS run before using it. GitHub does not
-automatically switch a queued self-hosted label to a hosted machine. Stop the
+When the NAS is unavailable, use Dealpipe's operator-controlled Vercel native-build
+recovery procedure in `docs/internals/pipeline-operations.md` and
+`docs/internals/laptop-release-recovery.md`. There is no GitHub-hosted recovery
+runner. Recovery requires an exact previously validated commit and exclusive
+release ownership after the normal publishers are disabled and drained. GitHub
+does not automatically switch a queued self-hosted label to a hosted machine. Stop the
 deployment services and disable this module to retire this capacity; do not
 remove application containers, CI registration or database volumes.

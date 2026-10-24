@@ -137,6 +137,25 @@ def admission_policy(path, profile):
     return policy, limits
 
 
+def committed_memory_mib(pool):
+    """Discount only clean inactive file cache within the CI cgroup.
+
+    This does NOT add anything to host MemAvailable. Keep tmpfs/shmem, dirty
+    pages, writeback, active cache and all anon/kernel memory in the commitment.
+    Missing accounting fails closed rather than guessing reclaimability.
+    """
+    stats = dict((key, int(value)) for key, value in
+                 (line.split() for line in (Path(pool) / 'memory.stat').read_text().splitlines()))
+    keys = ('anon', 'kernel', 'file', 'shmem', 'inactive_file', 'file_dirty', 'file_writeback')
+    if any(stats[key] < 0 for key in keys):
+        raise ValueError('Invalid CI memory accounting')
+    reclaimable = min(stats['inactive_file'], max(0, stats['file'] - stats['shmem']
+                      - stats['file_dirty'] - stats['file_writeback']))
+    current = int((Path(pool) / 'memory.current').read_text())
+    committed = max(stats['anon'] + stats['kernel'] + stats['shmem'], current - reclaimable)
+    return math.ceil(committed / 1024**2)
+
+
 @contextmanager
 def capacity_reservation(directory, policy_path, profile, meminfo, pool):
     """Serialize reservations; kernel-held file locks survive namespaces, not exits.
@@ -174,7 +193,7 @@ def capacity_reservation(directory, policy_path, profile, meminfo, pool):
             finally:
                 os.close(fd)
         requested = used_memory + limits["memoryMiB"]
-        current = math.ceil(int((pool / "memory.current").read_text()) / 1024**2)
+        current = committed_memory_mib(pool)
         if (requested > policy["maxConcurrentMiB"]
                 or available - requested < policy["reserveMiB"]
                 or current + requested > 32768

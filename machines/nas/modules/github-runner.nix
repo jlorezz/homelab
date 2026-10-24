@@ -5,7 +5,7 @@ let
   capacity = config.qnoxslab.githubRunnerCapacity;
 in
 {
-  imports = [ ./github-runner-capacity.nix ./github-runner-ci2.nix ];
+  imports = [ ./github-runner-capacity.nix ./github-runner-ci2.nix ./github-runner-browser.nix ];
   options.qnoxslab.githubRunner.enable = lib.mkEnableOption "dedicated rootless Docker engine for Dealpipe CI";
   config = lib.mkIf cfg.enable {
     users.groups.dealpipe-ci.gid = 1102;
@@ -37,6 +37,10 @@ in
     systemd.user.services.docker.environment.DOCKERD_ROOTLESS_ROOTLESSKIT_DETACH_NETNS = "false";
     # No CI service needs inbound access from the NAS; publish only within CI.
     systemd.user.services.docker.environment.DOCKERD_ROOTLESS_ROOTLESSKIT_PORT_DRIVER = "none";
+    # Reconcile the live 90-ci-daemon-dns.conf recovery drop-in (2026-10-24).
+    systemd.user.services.docker.postStart = ''
+      printf 'nameserver 1.1.1.1\nnameserver 9.9.9.9\n' > "$XDG_RUNTIME_DIR/dockerd-rootless/resolv.conf"
+    '';
 
     # Aggregate ceilings cover three CI lanes, the engine, and all test services.
     # These are admission limits, not measured build requirements.

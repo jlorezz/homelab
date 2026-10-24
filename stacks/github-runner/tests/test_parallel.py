@@ -29,6 +29,8 @@ class ParallelTests(unittest.TestCase):
         for name, value in [('memory.max', 32768 * 1024**2), ('memory.current', 1024**3),
                             ('memory.swap.max', 0), ('cpu.max', '800000 100000')]:
             (self.pool / name).write_text(str(value))
+        self.memory_stats(anon=1024, kernel=0, file=0, shmem=0, inactive_file=0,
+                          file_dirty=0, file_writeback=0)
         self.meminfo = self.root / 'meminfo'
         self.meminfo.write_text('MemTotal: 48596992 kB\nMemAvailable: 35632128 kB\n')
         self.policy = self.root / 'policy.json'
@@ -44,6 +46,10 @@ class ParallelTests(unittest.TestCase):
 
     def save(self):
         self.policy.write_text(json.dumps(self.data))
+
+    def memory_stats(self, **values):
+        (self.pool / 'memory.stat').write_text(''.join(f'{key} {value * 1024**2}\n'
+                                                     for key, value in values.items()))
 
     def finish(self, process):
         if process.poll() is None:
@@ -124,6 +130,27 @@ class ParallelTests(unittest.TestCase):
         self.assertTrue(ready.exists())
         second, ready = self.lease('b', 'ci2')
         self.assertNotEqual(second.wait(timeout=2), 0)
+        self.assertFalse(ready.exists())
+
+    def test_cache_heavy_pool_allows_overlap_without_discounting_tmpfs_or_dirty_pages(self):
+        (self.pool / 'memory.current').write_text(str(28 * 1024**3))
+        self.memory_stats(anon=4096, kernel=2048, file=22528, shmem=0,
+                          inactive_file=22528, file_dirty=0, file_writeback=0)
+        first, ar = self.lease('a')
+        second, br = self.lease('b', 'ci2')
+        self.assertTrue(ar.exists() and br.exists())
+        self.finish(first)
+        self.finish(second)
+        # The same file accounting now represents non-reclaimable tmpfs.
+        self.memory_stats(anon=4096, kernel=2048, file=22528, shmem=22528,
+                          inactive_file=22528, file_dirty=0, file_writeback=0)
+        denied, ready = self.lease('a')
+        self.assertNotEqual(denied.wait(timeout=2), 0)
+        self.assertFalse(ready.exists())
+        self.memory_stats(anon=4096, kernel=2048, file=22528, shmem=0,
+                          inactive_file=22528, file_dirty=22528, file_writeback=0)
+        denied, ready = self.lease('a')
+        self.assertNotEqual(denied.wait(timeout=2), 0)
         self.assertFalse(ready.exists())
 
     def test_fail_closed_on_stale_missing_disabled_or_low_live_headroom(self):

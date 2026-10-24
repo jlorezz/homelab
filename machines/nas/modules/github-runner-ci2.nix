@@ -39,12 +39,16 @@ in {
       # the privileged wrappers, never the unprivileged shadow binaries.
       path = [ "/run/wrappers" docker pkgs.rootlesskit pkgs.slirp4netns pkgs.fuse-overlayfs pkgs.iproute2 ];
       environment = {
+        XDG_RUNTIME_DIR = "%t/dealpipe-ci2";
         DOCKERD_ROOTLESS_ROOTLESSKIT_STATE_DIR = "/run/user/1102/dealpipe-ci2/rootlesskit";
         DOCKERD_ROOTLESS_ROOTLESSKIT_NET = "slirp4netns";
         DOCKERD_ROOTLESS_ROOTLESSKIT_PORT_DRIVER = "none";
         DOCKERD_ROOTLESS_ROOTLESSKIT_DETACH_NETNS = "false";
         RES_OPTIONS = "timeout:1 attempts:1";
       };
+      postStart = ''
+        printf 'nameserver 1.1.1.1\nnameserver 9.9.9.9\n' > "$XDG_RUNTIME_DIR/dockerd-rootless/resolv.conf"
+      '';
       serviceConfig = {
         Type = "notify";
         NotifyAccess = "all";

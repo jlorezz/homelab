@@ -48,6 +48,17 @@ in
 
   qnoxslab.agents.enable = true;
   qnoxslab.githubRunner.enable = true;
+  # Reconciled 2026-10-25 from the live NAS (previously only in the hand-edited
+  # /etc/nixos/homelab copy). This is the image in the generated units; the
+  # persistent operator drop-ins under /etc/systemd/system.control
+  # (40-chromium.conf) override ExecStart to run sha256:852de79d... at runtime.
+  # NixOS does not manage those drop-ins; adopting them is a separate change.
+  qnoxslab.githubDeploymentRunners = {
+    enable = true;
+    image = "sha256:840686ed03a267899e312868e6287a5436e6b34d5b85afc1fac00124eca56b0b";
+    environments = [ "staging" "production" ];
+    isolatedStaging = false;
+  };
   # Restricted forced-command deploy key for the T3 agent (stacks/agent-deploy/README.md).
   # Public key only; the private half stays in the T3 container. Mutating actions need
   # `agent-deploy-admin arm <action>` on the NAS. Source: T3 Docker network (src 172.18.0.2).

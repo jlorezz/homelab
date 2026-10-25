@@ -10,6 +10,11 @@ let
     if lib.hasPrefix "preview-" environment then cfg.previewImage
     else if environment == "staging" && cfg.stagingImage != "" then cfg.stagingImage
     else cfg.image;
+  # The live NAS (reconciled 2026-10-25) runs staging on the original controller
+  # without per-job limits; isolatedStaging = false declares exactly that.
+  legacyStaging = environment: environment == "staging" && !cfg.isolatedStaging;
+  needsCapacity = (cfg.isolatedStaging && builtins.elem "staging" cfg.environments)
+    || builtins.any (e: lib.hasPrefix "preview-" e) cfg.environments;
   deniedIPv4 = "{ 0.0.0.0/8, 10.0.0.0/8, 100.64.0.0/10, 127.0.0.0/8, 169.254.0.0/16, 172.16.0.0/12, 192.168.0.0/16, 224.0.0.0/4, 240.0.0.0/4 }";
 in
 {
@@ -24,6 +29,11 @@ in
       type = lib.types.str;
       default = "";
       description = "Optional immutable image for staging acceptance of a rebuilt image; empty uses `image`. Never changes the production unit.";
+    };
+    isolatedStaging = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = "Run staging on the isolated controller with measured limits. False keeps the original controller (the live NAS state reconciled 2026-10-25) and needs no capacity measurement.";
     };
     previewImage = lib.mkOption {
       type = lib.types.str;
@@ -43,8 +53,8 @@ in
   };
   config = lib.mkIf cfg.enable {
     assertions = [
-      { assertion = capacity.enable;
-        message = "Reconcile live deployment drift and measure capacity before enabling controllers."; }
+      { assertion = capacity.enable || !needsCapacity;
+        message = "Measure capacity before enabling isolated staging or preview controllers."; }
       { assertion = !(builtins.any (e: lib.hasPrefix "preview-" e) cfg.environments) || builtins.match "sha256:[0-9a-f]{64}" cfg.previewImage != null;
         message = "Build and pin the separate preview image before enabling preview roles."; }
       { assertion = cfg.stagingImage == "" || builtins.match "sha256:[0-9a-f]{64}" cfg.stagingImage != null;
@@ -68,22 +78,22 @@ in
       MemorySwapMax = 0;
       TasksMax = 4096;
     };
-    systemd.slices.dealpipe-staging.sliceConfig = {
+    systemd.slices.dealpipe-staging = lib.mkIf (cfg.isolatedStaging && builtins.elem "staging" cfg.environments) { sliceConfig = {
       CPUQuota = "${toString capacity.staging.cpuPercent}%";
       CPUWeight = 20;
       MemoryHigh = "${toString capacity.staging.memoryMiB}M";
       MemoryMax = "${toString capacity.staging.memoryMiB}M";
       MemorySwapMax = 0;
       TasksMax = 4096;
-    };
-    systemd.slices.dealpipe-preview.sliceConfig = {
+    }; };
+    systemd.slices.dealpipe-preview = lib.mkIf (builtins.any (e: lib.hasPrefix "preview-" e) cfg.environments) { sliceConfig = {
       CPUQuota = "${toString capacity.previewPool.cpuPercent}%";
       CPUWeight = 20;
       MemoryHigh = "${toString capacity.previewPool.memoryMiB}M";
       MemoryMax = "${toString capacity.previewPool.memoryMiB}M";
       MemorySwapMax = 0;
       TasksMax = 4096;
-    };
+    }; };
     systemd.services = {
       dealpipe-deploy-network = {
         description = "Public-egress-only Docker network for disposable release workers";
@@ -129,7 +139,7 @@ in
       serviceConfig = {
         Type = "simple";
         LoadCredential = [ "github-token:${cfg.credentialFile}" ];
-        ExecStart = "${pkgs.python3}/bin/python3 ${if environment == "production" then controller else isolatedController} --environment ${environment} --image ${imageFor environment} --credential %d/github-token${lib.optionalString (environment != "production") (let limits = if environment == "staging" then capacity.staging else if environment == "preview-build" then capacity.previewBuild else capacity.previewPublish; in " --memory-mib ${toString limits.memoryMiB} --cpu-percent ${toString limits.cpuPercent}")}";
+        ExecStart = "${pkgs.python3}/bin/python3 ${if environment == "production" || legacyStaging environment then controller else isolatedController} --environment ${environment} --image ${imageFor environment} --credential %d/github-token${lib.optionalString (environment != "production" && !(legacyStaging environment)) (let limits = if environment == "staging" then capacity.staging else if environment == "preview-build" then capacity.previewBuild else capacity.previewPublish; in " --memory-mib ${toString limits.memoryMiB} --cpu-percent ${toString limits.cpuPercent}")}";
         Restart = "always";
         # A controller creates a fresh registration/container after each job.
         RestartSec = 10;

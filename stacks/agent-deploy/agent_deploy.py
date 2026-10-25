@@ -185,6 +185,11 @@ class Dispatcher:
         self.state.mkdir(mode=0o700, parents=True, exist_ok=True)
         try:
             action, args = validate(action, args)
+            # Cheap preconditions first, so a refusal (e.g. busy runners)
+            # does not burn the operator's single-use arm.
+            precheck = getattr(self, "precheck_" + action.replace("-", "_"), None)
+            if precheck:
+                precheck(args)
             nonce = self.consume_arm(action) if ACTIONS[action][1] else None
         except Refused as error:
             self.audit(event="refused", action=str(action)[:40], client=client, detail=str(error))
@@ -302,6 +307,17 @@ class Dispatcher:
             except OSError:
                 continue
         return False
+
+    def precheck_nixos_switch(self, args):
+        (sha,) = args
+        if self.pending_file.exists():
+            raise Refused("A switch is already pending; confirm or roll it back first.")
+        link = self._build_link(sha)
+        if not link.exists():
+            raise Refused(f"Run nix-build {sha} first.")
+        self._production_unit_unchanged(link)
+        if self._workers_running():
+            raise Refused("A Runner.Worker is active; switch only when idle.")
 
     def do_nixos_switch(self, args, timeout, digest):
         (sha,) = args

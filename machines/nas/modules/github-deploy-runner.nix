@@ -5,6 +5,11 @@ let
   capacity = config.qnoxslab.githubRunnerCapacity;
   controller = ../../../stacks/github-deploy-runner/controller.py;
   isolatedController = ../../../stacks/github-preview-runner/controller.py;
+  # Staging can accept a rebuilt image before production; empty keeps it on `image`.
+  imageFor = environment:
+    if lib.hasPrefix "preview-" environment then cfg.previewImage
+    else if environment == "staging" && cfg.stagingImage != "" then cfg.stagingImage
+    else cfg.image;
   deniedIPv4 = "{ 0.0.0.0/8, 10.0.0.0/8, 100.64.0.0/10, 127.0.0.0/8, 169.254.0.0/16, 172.16.0.0/12, 192.168.0.0/16, 224.0.0.0/4, 240.0.0.0/4 }";
 in
 {
@@ -14,6 +19,11 @@ in
       type = lib.types.str;
       default = "";
       description = "Immutable sha256 image ID printed by stacks/github-deploy-runner/build-image.py on the NAS.";
+    };
+    stagingImage = lib.mkOption {
+      type = lib.types.str;
+      default = "";
+      description = "Optional immutable image for staging acceptance of a rebuilt image; empty uses `image`. Never changes the production unit.";
     };
     previewImage = lib.mkOption {
       type = lib.types.str;
@@ -37,6 +47,8 @@ in
         message = "Reconcile live deployment drift and measure capacity before enabling controllers."; }
       { assertion = !(builtins.any (e: lib.hasPrefix "preview-" e) cfg.environments) || builtins.match "sha256:[0-9a-f]{64}" cfg.previewImage != null;
         message = "Build and pin the separate preview image before enabling preview roles."; }
+      { assertion = cfg.stagingImage == "" || builtins.match "sha256:[0-9a-f]{64}" cfg.stagingImage != null;
+        message = "Pin the staging acceptance image by its immutable sha256 ID, or leave it empty."; }
       { assertion = builtins.match "sha256:[0-9a-f]{64}" cfg.image != null;
         message = "Build the deployment runner image first and configure its immutable image ID."; }
       { assertion = config.qnoxslab.githubRunner.enable;
@@ -117,7 +129,7 @@ in
       serviceConfig = {
         Type = "simple";
         LoadCredential = [ "github-token:${cfg.credentialFile}" ];
-        ExecStart = "${pkgs.python3}/bin/python3 ${if environment == "production" then controller else isolatedController} --environment ${environment} --image ${if lib.hasPrefix "preview-" environment then cfg.previewImage else cfg.image} --credential %d/github-token${lib.optionalString (environment != "production") (let limits = if environment == "staging" then capacity.staging else if environment == "preview-build" then capacity.previewBuild else capacity.previewPublish; in " --memory-mib ${toString limits.memoryMiB} --cpu-percent ${toString limits.cpuPercent}")}";
+        ExecStart = "${pkgs.python3}/bin/python3 ${if environment == "production" then controller else isolatedController} --environment ${environment} --image ${imageFor environment} --credential %d/github-token${lib.optionalString (environment != "production") (let limits = if environment == "staging" then capacity.staging else if environment == "preview-build" then capacity.previewBuild else capacity.previewPublish; in " --memory-mib ${toString limits.memoryMiB} --cpu-percent ${toString limits.cpuPercent}")}";
         Restart = "always";
         # A controller creates a fresh registration/container after each job.
         RestartSec = 10;

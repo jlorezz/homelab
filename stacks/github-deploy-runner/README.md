@@ -63,6 +63,20 @@ deployment settings. From an idle NAS maintenance window:
    changing Vercel build ownership. Never configure production settings as a
    side effect of activating this Homelab module.
 
+### Accept a rebuilt image on staging first
+
+`.stagingImage` pins a rebuilt image for the staging controller only; production
+keeps `.image`. Use it for any image rebuild, such as the custody packaging fix
+in #26:
+
+1. Build the image as in step 1 and record its `sha256:` ID.
+2. Set `.stagingImage` to it and leave `.image` on the live image. Confirm the
+   evaluated production unit is byte-identical to the live one before switching.
+3. After a successful staging release that ran on the new image, move the same
+   ID to `.image` and clear `.stagingImage` in a separate reviewed change.
+
+Rollback: clear `.stagingImage` and switch back; staging returns to `.image`.
+
 ## Operate and recover
 
 `journalctl -u dealpipe-deploy-staging` shows worker lifecycle; GitHub Actions is

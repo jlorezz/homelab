@@ -21,6 +21,8 @@ in {
     measuredTotalMiB = lib.mkOption { type = lib.types.nullOr lib.types.ints.positive; default = null; };
     reserveMiB = lib.mkOption { type = lib.types.ints.positive; default = 8192; description = "Reserve at least max(8 GiB, 25 percent of physical RAM)."; };
     measuredCpuPercent = lib.mkOption { type = lib.types.nullOr lib.types.ints.positive; default = null; description = "100 times measured logical CPUs, minus operator reserve."; };
+    committedAtMeasurementMiB = lib.mkOption { type = lib.types.nullOr lib.types.ints.positive; default = null; description = "Pool ceilings that were already live (and so already reflected in measuredHeadroomMiB) when it was sampled. When set, only ceilings beyond it must fit the headroom minus reserve; unset keeps the strict sum of all ceilings."; };
+    committedAtMeasurementCpuPercent = lib.mkOption { type = lib.types.nullOr lib.types.ints.positive; default = null; description = "Same for CPU quotas. CPU quotas only slow work, so they are checked against measuredCpuPercent as an addition to the live ones."; };
     ciPool = pool 1 32768 800;
     ci = pool 1 8192 400;
     browser = pool 1 8192 400;
@@ -39,8 +41,8 @@ in {
       { assertion = builtins.length deployment.environments == builtins.length (lib.unique deployment.environments); message = "Deployment environments must be unique."; }
       { assertion = cfg.measuredHeadroomMiB != null && cfg.measuredTotalMiB != null && cfg.measuredCpuPercent != null; message = "Runner capacity inputs are UNVERIFIED: perform operator step 0 first."; }
       { assertion = cfg.measuredTotalMiB == null || cfg.reserveMiB * 4 >= cfg.measuredTotalMiB; message = "Runner reserve must be at least 25 percent of physical RAM."; }
-      { assertion = cfg.measuredHeadroomMiB == null || total + cfg.reserveMiB <= cfg.measuredHeadroomMiB; message = "Sum of runner pool MemoryMax plus reserve exceeds measured headroom."; }
-      { assertion = cfg.measuredCpuPercent == null || cfg.ciPool.cpuPercent + (if preview then cfg.previewPool.cpuPercent else 0) + (if staging then cfg.staging.cpuPercent else 0) + (if production then 400 else 0) <= cfg.measuredCpuPercent; message = "Runner CPU ceilings exceed measured CPU budget."; }
+      { assertion = cfg.measuredHeadroomMiB == null || (if cfg.committedAtMeasurementMiB == null then total else total - cfg.committedAtMeasurementMiB) + cfg.reserveMiB <= cfg.measuredHeadroomMiB; message = "Runner pool MemoryMax beyond what was live at measurement, plus reserve, exceeds measured headroom."; }
+      { assertion = cfg.measuredCpuPercent == null || (cfg.ciPool.cpuPercent + (if preview then cfg.previewPool.cpuPercent else 0) + (if staging then cfg.staging.cpuPercent else 0) + (if production then 400 else 0)) - (if cfg.committedAtMeasurementCpuPercent == null then 0 else cfg.committedAtMeasurementCpuPercent) <= cfg.measuredCpuPercent; message = "Runner CPU ceilings beyond what was live at measurement exceed the measured CPU budget."; }
       { assertion = cfg.ci.count == 1 && cfg.browser.count == 1 && cfg.static.count >= 1; message = "Fixed-port CI/browser lanes must each remain singletons; scale socket-free static instead."; }
       { assertion = cfg.ciPool.count == 1 && cfg.previewPool.count == 1 && cfg.staging.count == 1 && cfg.production.count == 1 && cfg.production.memoryMiB == 12288 && cfg.production.cpuPercent == 400; message = "Aggregate pools are singletons; production resources are frozen for unit equivalence."; }
       { assertion = cfg.ciPool.memoryMiB >= cfg.ci.memoryMiB + cfg.browser.memoryMiB + cfg.static.count * cfg.static.memoryMiB + cfg.engineReserveMiB; message = "CI pool must cover all runner ceilings plus the engine/test-service reserve."; }

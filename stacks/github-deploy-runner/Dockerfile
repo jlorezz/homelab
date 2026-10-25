@@ -6,6 +6,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && mv /home/runner /opt/actions-runner \
     && mkdir -p /runner /home/ci /work /opt/hostedtoolcache \
     && chown -R 1001:123 /runner /home/ci /work /opt/hostedtoolcache
+# Chromium system libraries for the release job's browser checks (Dealpipe
+# #774/#795). Same package set as the live image sha256:852de79d..., which was
+# layered on by hand on 2026-10-21; the job downloads its pinned Chromium itself.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    xvfb fonts-noto-color-emoji fonts-unifont libfontconfig1 libfreetype6 \
+    xfonts-cyrillic xfonts-scalable fonts-liberation fonts-ipafont-gothic \
+    fonts-wqy-zenhei fonts-tlwg-loma-otf fonts-freefont-ttf libasound2t64 \
+    libatk-bridge2.0-0t64 libatk1.0-0t64 libatspi2.0-0t64 libcairo2 libcups2t64 \
+    libdbus-1-3 libdrm2 libgbm1 libglib2.0-0t64 libnspr4 libnss3 libpango-1.0-0 \
+    libx11-6 libxcb1 libxcomposite1 libxdamage1 libxext6 libxfixes3 \
+    libxkbcommon0 libxrandr2 \
+    && rm -rf /var/lib/apt/lists/*
 COPY entrypoint.sh /usr/local/bin/deploy-runner
 COPY job-hook.py /usr/local/lib/agent-platform/job-hook.py
 COPY custody.py /usr/local/lib/agent-platform/custody.py

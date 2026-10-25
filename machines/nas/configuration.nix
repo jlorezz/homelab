@@ -48,6 +48,14 @@ in
 
   qnoxslab.agents.enable = true;
   qnoxslab.githubRunner.enable = true;
+  # Restricted forced-command deploy key for the T3 agent (stacks/agent-deploy/README.md).
+  # Public key only; the private half stays in the T3 container. Mutating actions need
+  # `agent-deploy-admin arm <action>` on the NAS. Source: T3 Docker network (src 172.18.0.2).
+  qnoxslab.agentDeploy = {
+    enable = true;
+    authorizedKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJwrI2NsXj0V+ek+V60oKQhHO0+IyHHxkNnnVcE1m8Pw agent-deploy@t3";
+    fromAddresses = [ "172.18.0.0/16" ];
+  };
 
   environment.systemPackages = with pkgs; [
     vim

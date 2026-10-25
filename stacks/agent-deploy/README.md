@@ -1,6 +1,6 @@
 # Restricted agent deploy path
 
-`qnoxslab.agentDeploy` (module `machines/nas/modules/agent-deploy.nix`) lets one SSH key run **named, allowlisted host actions** on the NAS instead of the operator pasting commands into a root shell. It is **disabled by default**. Enabling it is a reviewed config change plus a NixOS switch by the operator. The one-time setup is in the Dealpipe pipeline handover `NAS-DEPLOY-USER-SETUP.md`.
+`qnoxslab.agentDeploy` (module `machines/nas/modules/agent-deploy.nix`) lets one SSH key run **named, allowlisted host actions** on the NAS instead of the operator pasting commands into a root shell. It is **disabled by default** and enabled on the NAS in `machines/nas/configuration.nix` (key comment `agent-deploy@t3`, source `172.18.0.0/16`); a NixOS switch activates it. Enabling it is a reviewed config change plus a NixOS switch by the operator. The one-time setup is in the Dealpipe pipeline handover `NAS-DEPLOY-USER-SETUP.md`.
 
 ## Shape
 

@@ -8,11 +8,16 @@ KEY = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEXAMPLEEXAMPLEEXAMPLEEXAMPLEEXAMPLEE
 expression = '''let
   f = builtins.getFlake (toString ./.);
   base = f.nixosConfigurations.nas;
+  lib = base.pkgs.lib;
   enabled = base.extendModules { modules = [{ qnoxslab.agentDeploy = {
-    enable = true; authorizedKey = "%s"; fromAddresses = [ "172.18.0.0/16" ]; }; }]; };
+    enable = true; authorizedKey = lib.mkForce "%s"; fromAddresses = lib.mkForce [ "172.18.0.0/16" ]; }; }]; };
   c = enabled.config;
 in {
-  disabled = !(base.config.users.users ? agent-deploy);
+  defaultDisabled = base.options.qnoxslab.agentDeploy.enable.default == false;
+  nasEnabled = base.config.qnoxslab.agentDeploy.enable;
+  nasKey = base.config.qnoxslab.agentDeploy.authorizedKey;
+  nasFrom = base.config.qnoxslab.agentDeploy.fromAddresses;
+  nasFailed = map (a: a.message) (builtins.filter (a: !a.assertion) base.config.assertions);
   keys = c.users.users.agent-deploy.openssh.authorizedKeys.keys;
   sudo = c.security.sudo.extraRules;
   sshd = c.services.openssh.extraConfig;
@@ -30,7 +35,12 @@ def evaluate(expr):
 
 
 result = evaluate(expression)
-assert result["disabled"], "module must be disabled by default"
+assert result["defaultDisabled"], "module must be disabled by default"
+# The NAS enables it with the committed T3 public key (public half only).
+if result["nasEnabled"]:
+    assert result["nasKey"].startswith("ssh-ed25519 ") and result["nasKey"].endswith(" agent-deploy@t3"), result["nasKey"]
+    assert result["nasFrom"] == ["172.18.0.0/16"], result["nasFrom"]
+    assert not result["nasFailed"], result["nasFailed"]
 assert not result["failed"], result["failed"]
 assert result["system"]
 (key,) = result["keys"]

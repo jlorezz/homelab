@@ -35,8 +35,18 @@ before = units(f"path:{base_dir}", '''f.nixosConfigurations.nas.extendModules { 
   qnoxslab.githubDeploymentRunners = { enable = true; environments = [ "staging" "production" ];
     image = "%s"; }; }]; }''' % IMAGE)
 
-production = hashlib.sha256(here["production"].encode()).hexdigest()
-print(f"production unit sha256 {production}")
+def digest(text):
+    return hashlib.sha256(text.encode()).hexdigest()
+
+
+production = digest(here["production"])
+print(f"production unit sha256 {production} (live {LIVE_PRODUCTION_SHA256})")
+print(f"4bfead6 production unit sha256 {digest(before['production'])}")
+if production != LIVE_PRODUCTION_SHA256:
+    # Unit text carries paths and arguments only (the token is a LoadCredential path).
+    print("---- evaluated production unit ----")
+    print(here["production"])
+    print("---- end ----")
 assert production == LIVE_PRODUCTION_SHA256, "production unit would differ from the live NAS unit"
 assert here["production"] == before["production"], "production unit differs from the 4bfead6 evaluation"
 assert here["staging"] == before["staging"], "staging unit differs from the 4bfead6 evaluation (live shape)"

@@ -382,6 +382,19 @@ class ProcessSafetyTests(unittest.TestCase):
             self.rows[103]='Runner.Listener'
             with self.assertRaises(RuntimeError): m.quiesced(OLD,(101,'123456',99))
 
+    def test_quiescence_accepts_run_helper_only_in_the_parent_chain(self):
+        self.write_process(90, 'docker-init', 1)
+        self.write_process(100, 'run.sh', 90)
+        self.write_process(105, 'run-helper.sh', 100)
+        self.write_process(101, 'Runner.Listener', 105)
+        self.rows = {90: 'docker-init', 100: 'run.sh', 105: 'run-helper.sh', 101: 'Runner.Listener'}
+        with patch.object(m, 'processes', side_effect=lambda _: self.rows):
+            m.quiesced(OLD, (101, '123456', 99))
+            self.write_process(106, 'run-helper.sh', 90)
+            self.rows[106] = 'run-helper.sh'
+            with self.assertRaises(RuntimeError):
+                m.quiesced(OLD, (101, '123456', 99))
+
 
 if __name__ == '__main__':
     unittest.main()

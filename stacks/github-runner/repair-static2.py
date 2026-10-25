@@ -193,7 +193,10 @@ def quiesced(container_id, frozen):
     rows = processes(container_id)
     require([p for p, comm in rows.items() if comm == 'Runner.Listener'] == [pid],
             'Listener set changed')
-    require(all(comm in {'Runner.Listener', 'tini', 'docker-init', 'bash', 'run.sh'} for comm in rows.values()),
+    # run-helper.sh is the stock Actions runner supervisor between run.sh and
+    # Runner.Listener. The ancestor-chain check below still rejects a sibling.
+    require(all(comm in {'Runner.Listener', 'tini', 'docker-init', 'bash', 'run.sh', 'run-helper.sh'}
+                for comm in rows.values()),
             'Worker or unexpected active process; refusing stop')
     # Every other container process must be a supervisor ancestor. A sibling
     # shell (or a Worker whose comm was changed) is not evidence of idleness.

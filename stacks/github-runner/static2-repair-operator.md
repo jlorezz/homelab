@@ -92,9 +92,10 @@ and signals through a retained pidfd. After SIGSTOP it waits two bounded 250 ms
 stabilization intervals, verifies every Listener thread is stopped without
 children, and rejects any Worker, unknown process or process outside the
 Listener's supervisor ancestor chain. An already accepted Worker causes refusal
-and Listener resume, never Worker termination. Restrictive process checks may
-refuse an unfamiliar harmless supervisor; inspect privately instead of weakening
-checks during execution.
+and Listener resume, never Worker termination. The stock Actions runner
+supervisor `run-helper.sh` is accepted only as an ancestor of the Listener,
+alongside `run.sh`, `docker-init`, `tini`, and `bash`. A sibling with any of
+those names is still refused.
 
 Only after these checks does it disable old restart, check quiescence again,
 stop the exact old ID, verify exited/inactive, and rename it to

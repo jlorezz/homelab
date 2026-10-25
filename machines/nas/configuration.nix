@@ -56,8 +56,11 @@ in
   qnoxslab.githubDeploymentRunners = {
     enable = true;
     image = "sha256:840686ed03a267899e312868e6287a5436e6b34d5b85afc1fac00124eca56b0b";
-    environments = [ "staging" "production" ];
+    environments = [ "staging" "production" "preview-build" "preview-publish" ];
     isolatedStaging = false;
+    # Dedicated preview workers (dealpipe #827): `dealpipe-nas-preview` and
+    # `dealpipe-preview-publish`, built on the NAS 2026-10-25 from the shared Dockerfile.
+    previewImage = "sha256:c057290062ef1cb57cd90f90803dc30a9ff9d105599d0f875adfdbc3794daec4";
     # Staging acceptance of the rebuilt image (custody #26 + Chromium #33),
     # built on the NAS 2026-10-25. Production keeps `image` until it passes.
     stagingImage = "sha256:e5ea27e982f038e50fa62ce4b8537921bb1393f5f2772858b388830bf46717f8";
@@ -69,6 +72,23 @@ in
     enable = true;
     authorizedKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJwrI2NsXj0V+ek+V60oKQhHO0+IyHHxkNnnVcE1m8Pw agent-deploy@t3";
     fromAddresses = [ "172.18.0.0/16" ];
+  };
+
+  # Measured on the NAS 2026-10-24 (5 min x 5 s, CI pool and deploy runners live):
+  # 12 logical CPUs, 47,458 MiB RAM, minimum MemAvailable 34,797 MiB, 11,865 MiB reserve
+  # (25 percent). Only the preview pool is new: the CI pool, staging and production
+  # ceilings were already live when sampled. Peak behaviour with preview running is
+  # UNVERIFIED; re-measure under load and restate these numbers if they change.
+  qnoxslab.githubRunnerCapacity = {
+    enable = true;
+    measuredHeadroomMiB = 34797;
+    measuredTotalMiB = 47458;
+    reserveMiB = 11865;
+    measuredCpuPercent = 1000;
+    committedAtMeasurementMiB = 53248; # CI pool 32768 + staging 8192 + production 12288
+    committedAtMeasurementCpuPercent = 1400; # 800 + 200 + 400
+    previewBuild.count = 1;
+    previewPublish.count = 1;
   };
 
   environment.systemPackages = with pkgs; [

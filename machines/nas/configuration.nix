@@ -49,10 +49,13 @@ in
   qnoxslab.agents.enable = true;
   qnoxslab.githubRunner.enable = true;
   # Reconciled 2026-10-25 from the live NAS (previously only in the hand-edited
-  # /etc/nixos/homelab copy): both controllers run this image today.
+  # /etc/nixos/homelab copy). This is the image in the generated units; the
+  # persistent operator drop-ins under /etc/systemd/system.control
+  # (40-chromium.conf) override ExecStart to run sha256:852de79d... at runtime.
+  # NixOS does not manage those drop-ins; adopting them is a separate change.
   qnoxslab.githubDeploymentRunners = {
     enable = true;
-    image = "sha256:852de79d34f945188ee55c03dffe2dd834d1d0fde7829a6d49dd3e74d8ba01e2";
+    image = "sha256:840686ed03a267899e312868e6287a5436e6b34d5b85afc1fac00124eca56b0b";
     environments = [ "staging" "production" ];
     isolatedStaging = false;
   };

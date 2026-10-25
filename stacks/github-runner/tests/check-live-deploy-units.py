@@ -14,7 +14,8 @@ import sys
 
 LIVE_PRODUCTION_SHA256 = "fc4e319c5d1a929c5d1f63dfd7313c12b6689dd9f73799f31f48759d4fe2c933"
 BASE = "4bfead617fc26e6d634b1696061729716127822b"
-IMAGE = "sha256:852de79d34f945188ee55c03dffe2dd834d1d0fde7829a6d49dd3e74d8ba01e2"
+# The image in the generated unit file; a persistent drop-in overrides it at runtime.
+IMAGE = "sha256:840686ed03a267899e312868e6287a5436e6b34d5b85afc1fac00124eca56b0b"
 
 
 def evaluate(flake, expr_body):

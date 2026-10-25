@@ -80,6 +80,11 @@ jobs:
           bash stacks/github-runner/production-equivalence.sh 4bfead617fc26e6d634b1696061729716127822b "$RUNNER_TEMP/production-equivalence"
       - name: Evaluate opt-in CI2 isolation and unchanged parent
         run: python3 stacks/github-runner/tests/check-ci2-nix.py
+      - name: Reproduce the live NAS deploy units (C1)
+        run: |
+          git fetch --no-tags origin 4bfead617fc26e6d634b1696061729716127822b
+          base=$(mktemp -d) && git archive 4bfead617fc26e6d634b1696061729716127822b | tar -x -C "$base"
+          python3 stacks/github-runner/tests/check-live-deploy-units.py "$base"
       - name: Evaluate the disabled-by-default agent-deploy contract
         run: python3 stacks/agent-deploy/tests/check-agent-deploy-nix.py
       - name: Build and check exact application runtimes

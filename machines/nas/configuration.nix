@@ -48,6 +48,14 @@ in
 
   qnoxslab.agents.enable = true;
   qnoxslab.githubRunner.enable = true;
+  # Reconciled 2026-10-25 from the live NAS (previously only in the hand-edited
+  # /etc/nixos/homelab copy): both controllers run this image today.
+  qnoxslab.githubDeploymentRunners = {
+    enable = true;
+    image = "sha256:852de79d34f945188ee55c03dffe2dd834d1d0fde7829a6d49dd3e74d8ba01e2";
+    environments = [ "staging" "production" ];
+    isolatedStaging = false;
+  };
   # Restricted forced-command deploy key for the T3 agent (stacks/agent-deploy/README.md).
   # Public key only; the private half stays in the T3 container. Mutating actions need
   # `agent-deploy-admin arm <action>` on the NAS. Source: T3 Docker network (src 172.18.0.2).

@@ -180,6 +180,20 @@ class Switch(Base):
         with self.assertRaises(ad.Refused):
             self.d.run_root("nixos-switch", [SHA])
 
+    def test_precheck_refusal_keeps_the_arm(self):
+        self.d.arm("nixos-switch", 5)
+        with self.assertRaises(ad.Refused):
+            self.d.run_root("nixos-switch", [SHA])  # no build yet: precheck refuses
+        self.assertTrue(self.d.arm_file.exists())
+        self.d.state.joinpath("builds").mkdir(parents=True, exist_ok=True)
+        self.d.state.joinpath("builds", SHA).mkdir()
+        with mock.patch.object(ad.Dispatcher, "_workers_running", return_value=True), \
+                self.assertRaises(ad.Refused):
+            self.d.run_root("nixos-switch", [SHA])
+        self.assertTrue(self.d.arm_file.exists())
+        lines = [json.loads(line) for line in Path(self.config["auditLog"]).read_text().splitlines()]
+        self.assertEqual([line["event"] for line in lines], ["refused", "refused"])
+
     def test_production_unit_must_be_identical(self):
         live = Path(self.config["productionUnit"])
         live.parent.mkdir(parents=True)

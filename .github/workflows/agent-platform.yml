@@ -11,6 +11,9 @@ on:
       - stacks/github-runner/**
       - stacks/github-preview-runner/**
       - stacks/github-deploy-runner/**
+      - stacks/agent-deploy/**
+      - machines/nas/configuration.nix
+      - machines/nas/modules/agent-deploy.nix
       - packages/**
       - machines/nas/modules/agent-platform.nix
       - machines/nas/modules/agent-knowledge.nix
@@ -49,10 +52,12 @@ jobs:
       - run: python stacks/agents/doctor.py --source-only
       - run: python -m unittest discover -s stacks/agents/tests -v
       - run: python -m unittest discover -s stacks/github-runner/tests -v
+      - run: python -m unittest discover -s stacks/agent-deploy/tests -v
       - run: sudo apt-get update && sudo apt-get install -y restic
       - run: python -m unittest discover -s stacks/backups/tests -v
       - run: python -m unittest discover -s stacks/dealpipe-recovery/tests -v
-      - run: bash -n stacks/agents/prepare-workspaces.sh stacks/github-runner/entrypoint.sh
+      - run: bash -n stacks/agents/prepare-workspaces.sh stacks/github-runner/entrypoint.sh stacks/agent-deploy/inventory.sh
+      - run: shellcheck --severity=error stacks/agent-deploy/inventory.sh
 
   nix:
     runs-on: ubuntu-24.04
@@ -64,7 +69,7 @@ jobs:
       - uses: cachix/install-nix-action@3c6342b75005b9cc7c7d4069c3e9179247c89012 # v31
       - name: Parse changed platform definitions
         run: |
-          for file in flake.nix packages/*.nix machines/nas/modules/agent-platform.nix machines/nas/modules/agent-knowledge.nix machines/nas/modules/offsite-backup.nix machines/nas/modules/dealpipe-recovery.nix machines/nas/modules/github-*.nix; do
+          for file in flake.nix packages/*.nix machines/nas/modules/agent-platform.nix machines/nas/modules/agent-knowledge.nix machines/nas/modules/offsite-backup.nix machines/nas/modules/dealpipe-recovery.nix machines/nas/modules/github-*.nix machines/nas/modules/agent-deploy.nix; do
             nix-instantiate --parse "$file" >/dev/null
           done
       - name: Evaluate complete NAS generation
@@ -75,6 +80,8 @@ jobs:
           bash stacks/github-runner/production-equivalence.sh 4bfead617fc26e6d634b1696061729716127822b "$RUNNER_TEMP/production-equivalence"
       - name: Evaluate opt-in CI2 isolation and unchanged parent
         run: python3 stacks/github-runner/tests/check-ci2-nix.py
+      - name: Evaluate the disabled-by-default agent-deploy contract
+        run: python3 stacks/agent-deploy/tests/check-agent-deploy-nix.py
       - name: Build and check exact application runtimes
         run: nix build .#agent-runtimes --print-build-logs
       - name: Build development image when requested

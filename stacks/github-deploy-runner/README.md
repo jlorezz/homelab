@@ -77,6 +77,12 @@ in #26:
 
 Rollback: clear `.stagingImage` and switch back; staging returns to `.image`.
 
+Live note (2026-10-25): staging and production also carry operator drop-ins at
+`/etc/systemd/system.control/dealpipe-deploy-{staging,production}.service.d/40-chromium.conf`.
+They replace `ExecStart` to run the hand-layered Chromium image `sha256:852de79d...`,
+so a pinned image only takes effect once that unit's drop-in is removed. The
+Dockerfile now carries the same Chromium layer, so a rebuilt image can replace it.
+
 ## Operate and recover
 
 `journalctl -u dealpipe-deploy-staging` shows worker lifecycle; GitHub Actions is

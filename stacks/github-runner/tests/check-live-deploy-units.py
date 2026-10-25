@@ -31,10 +31,15 @@ def units(flake, configure):
 
 
 here = units(f"path:{os.getcwd()}", "f.nixosConfigurations.nas")
+staging_image = evaluate(f"path:{os.getcwd()}", "f.nixosConfigurations.nas.config.qnoxslab.githubDeploymentRunners.stagingImage") or IMAGE
 base_dir = sys.argv[1]
-before = units(f"path:{base_dir}", '''f.nixosConfigurations.nas.extendModules { modules = [{
+BASE_EXPR = '''f.nixosConfigurations.nas.extendModules { modules = [{
   qnoxslab.githubDeploymentRunners = { enable = true; environments = [ "staging" "production" ];
-    image = "%s"; }; }]; }''' % IMAGE)
+    image = "%s"; }; }]; }'''
+before = units(f"path:{base_dir}", BASE_EXPR % IMAGE)
+# A pinned stagingImage changes only the staging image argument.
+before_staging = units(f"path:{base_dir}", BASE_EXPR % staging_image)["staging"]
+print(f"staging image {staging_image}")
 
 def digest(text):
     return hashlib.sha256(text.encode()).hexdigest()
@@ -50,6 +55,6 @@ if production != LIVE_PRODUCTION_SHA256:
     print("---- end ----")
 assert production == LIVE_PRODUCTION_SHA256, "production unit would differ from the live NAS unit"
 assert here["production"] == before["production"], "production unit differs from the 4bfead6 evaluation"
-assert here["staging"] == before["staging"], "staging unit differs from the 4bfead6 evaluation (live shape)"
+assert here["staging"] == before_staging, "staging unit differs from the 4bfead6 evaluation (live shape)"
 print("staging unit sha256", hashlib.sha256(here["staging"].encode()).hexdigest())
 print("live deploy units reproduced")

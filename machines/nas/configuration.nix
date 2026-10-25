@@ -58,6 +58,9 @@ in
     image = "sha256:840686ed03a267899e312868e6287a5436e6b34d5b85afc1fac00124eca56b0b";
     environments = [ "staging" "production" ];
     isolatedStaging = false;
+    # Staging acceptance of the rebuilt image (custody #26 + Chromium #33),
+    # built on the NAS 2026-10-25. Production keeps `image` until it passes.
+    stagingImage = "sha256:e5ea27e982f038e50fa62ce4b8537921bb1393f5f2772858b388830bf46717f8";
   };
   # Restricted forced-command deploy key for the T3 agent (stacks/agent-deploy/README.md).
   # Public key only; the private half stays in the T3 container. Mutating actions need

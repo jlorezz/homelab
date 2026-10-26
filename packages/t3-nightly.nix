@@ -3,11 +3,11 @@
 # Pin an official nightly archive so image builds remain reproducible.
 pkgs.stdenv.mkDerivation (finalAttrs: {
   pname = "t3code-nightly";
-  version = "0.1.3-nightly.20261023.3553";
+  version = "0.1.3-nightly.20261026.3717";
 
   src = pkgs.fetchurl {
     url = "https://github.com/pingdotgg/t3code/releases/download/v${finalAttrs.version}/t3-${finalAttrs.version}-linux-x64.tar.gz";
-    hash = "sha256-67y+QBpI/fx20/yD/s0IaoYm4QIQnZudLlczNUgJiRU=";
+    hash = "sha256-JNLUUvhD8va4Z5cNvtQrEW7VvpFWbnkEk4jqiTNp9rk=";
   };
 
   nativeBuildInputs = [ pkgs.autoPatchelfHook pkgs.makeWrapper ];

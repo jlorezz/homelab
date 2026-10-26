@@ -22,8 +22,8 @@ stopping idle removed replicas: Portainer deliberately uses `Prune: false`.
 | CI aggregate, including engine/test services | 1 / 1 | 32 GiB | 8 CPUs |
 | CI / browser | 1 each / 1 each | 8 GiB each | 4 CPUs each |
 | static | 1 / 1–4 | 4 GiB each | 2 CPUs each |
-| preview aggregate | 1 / 1 | 10 GiB | 4 CPUs |
-| preview build / publish | 0 each / 0–1 each | 8 / 2 GiB | 4 / 1 CPUs |
+| preview aggregate | 1 / 1 | 16 GiB | 4 CPUs |
+| preview build / publish | 0 each / 0–1 each | 12 / 4 GiB | 4 / 1 CPUs |
 | staging | 1 when environment enabled / 1 | 8 GiB | 2 CPUs |
 | production | 1 when environment enabled / 1 | 12 GiB | 4 CPUs (frozen) |
 

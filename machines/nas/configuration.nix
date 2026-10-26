@@ -13,6 +13,7 @@ in
     ./modules/defaults.nix
     ./modules/updates.nix
     ./modules/efficiency.nix
+    ./modules/ups.nix
     ./modules/agent-platform.nix
     ./modules/github-runner.nix
     ./modules/github-deploy-runner.nix

@@ -210,7 +210,7 @@ in
   # Feed NAS-specific failures into Beszel's systemd service health view, including
   # stale backups (a successful old backup is otherwise easy to overlook).
   systemd.services.nas-health-check = {
-    description = "NAS health: required ZFS mounts, pool state and backup freshness";
+    description = "NAS health: required ZFS mounts, pool state and errors, backup freshness";
     after = [ "zfs-import.target" ];
     path = [ pkgs.util-linux config.boot.zfs.package pkgs.restic ];
     environment = {

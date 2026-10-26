@@ -1,4 +1,4 @@
-"""Expose missing NAS storage and stale Restic snapshots as a failed systemd unit."""
+"""Expose missing NAS storage, ZFS errors and stale Restic snapshots as a failed systemd unit."""
 
 from datetime import datetime, timedelta, timezone
 import json
@@ -22,6 +22,10 @@ def main():
     health = command("zpool", "list", "-H", "-o", "health", "storage")
     if health != "ONLINE":
         raise RuntimeError(f"ZFS pool storage is {health}")
+    # An ONLINE pool can still carry read/write/checksum errors, e.g. found by a scrub.
+    status = command("zpool", "status", "-x", "storage")
+    if status != "pool 'storage' is healthy":
+        raise RuntimeError("ZFS pool storage reports errors; see `zpool status -v storage`")
     snapshots = json.loads(command("restic", "--no-cache", "--no-lock", "snapshots", "--json", "--latest", "1"))
     cutoff = datetime.now(timezone.utc) - timedelta(hours=36)
     for path in ("/storage/obsidian", "/var/lib/agent-backup-staging"):
@@ -57,7 +61,7 @@ def main():
         action = failure.get("action", "").replace("-", "_")
         if failure.get("at", "") > state.get(action, {}).get("at", ""):
             raise RuntimeError("Latest production recovery action failed")
-    print("NAS health OK: required mounts present, ZFS ONLINE, NAS and agent backups younger than 36h")
+    print("NAS health OK: required mounts present, ZFS ONLINE without errors, NAS and agent backups younger than 36h")
 
 
 if __name__ == "__main__":

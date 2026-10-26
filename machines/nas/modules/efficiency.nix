@@ -18,6 +18,9 @@ in
     enable = true;
     cpuFreqGovernor = "powersave";
   };
+  # The energy_performance_preference write below only exists in amd-pstate's
+  # active (EPP) mode; unsupported CPUs fall back to acpi-cpufreq unchanged.
+  boot.kernelParams = [ "amd_pstate=active" ];
 
   # Preserve responsive boost; ask AMD CPPC to favor energy efficiency.
   systemd.services.nas-efficiency = {
@@ -85,7 +88,8 @@ in
     };
     gc = {
       automatic = true;
-      dates = "weekly";
+      # Off-peak, after the 03:30 Restic backup has usually finished.
+      dates = "Sun 05:00";
       options = "--delete-older-than 30d";
     };
   };

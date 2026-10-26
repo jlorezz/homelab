@@ -11,7 +11,9 @@ for sock in \
 do
   d() { runuser -u dealpipe-ci -- docker --host "unix://$sock" "$@"; }
   printf '\nENGINE: %s\nNETWORK | CONTAINERS | CREATED\n' "$sock"
-  ids=$(d network ls -q)
+  # A stopped engine (e.g. the hand-started CI2 canary after a reboot) must not
+  # abort the rest of the read-only inventory.
+  if ! ids=$(d network ls -q 2>/dev/null); then echo "engine unavailable"; continue; fi
   for id in $ids; do
     d network inspect --format \
       '{{.Name}} | {{len .Containers}} | {{.Created}}' "$id"

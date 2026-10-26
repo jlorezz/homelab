@@ -28,9 +28,13 @@ in {
     browser = pool 1 8192 400;
     static = pool 1 4096 200;
     engineReserveMiB = lib.mkOption { type = lib.types.ints.positive; default = 4096; };
-    previewPool = pool 1 10240 400;
-    previewBuild = pool 0 8192 400;
-    previewPublish = pool 0 2048 100;
+    # The first 8/2/10 GiB ceilings OOM-killed every preview (2026-10-26): Next
+    # static generation (4 workers, 359 pages) exceeded 8 GiB, and the frozen
+    # monorepo `bun install` in publish exceeded 2 GiB (exit 137). Publish ran in
+    # the 12 GiB deploy-staging container before. Peak RSS is still unmeasured.
+    previewPool = pool 1 16384 400;
+    previewBuild = pool 0 12288 400;
+    previewPublish = pool 0 4096 100;
     staging = pool 1 8192 200;
     production = pool 1 12288 400;
   };

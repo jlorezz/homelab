@@ -128,13 +128,15 @@ def provision(state, source=HERE, apply=False, enabled=None):
     ])
     links = []
     for worker in ("t3", "opencode"):
+        # Codex/OpenCode read .agents/skills; Claude Code reads .claude/skills.
         for skill in sorted((policy / "skills").iterdir()):
-            path = state / worker / ".agents/skills" / skill.name
-            refuse_symlink_path(state, path.parent)
-            target = f"{RUNTIME}/skills/{skill.name}"
-            if (path.exists() or path.is_symlink()) and (not path.is_symlink() or os.readlink(path) != target):
-                raise ValueError(f"Skill collision at {path}; preserve/rename the existing skill first")
-            links.append((path, target))
+            for directory in (".agents/skills", ".claude/skills"):
+                path = state / worker / directory / skill.name
+                refuse_symlink_path(state, path.parent)
+                target = f"{RUNTIME}/skills/{skill.name}"
+                if (path.exists() or path.is_symlink()) and (not path.is_symlink() or os.readlink(path) != target):
+                    raise ValueError(f"Skill collision at {path}; preserve/rename the existing skill first")
+                links.append((path, target))
     current = state / "policy/current"
     if current.exists() and not current.is_symlink():
         raise ValueError("Policy current must be a managed symlink, not a directory/file")

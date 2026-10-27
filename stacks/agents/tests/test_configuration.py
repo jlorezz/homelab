@@ -68,6 +68,25 @@ class ConfigurationTests(unittest.TestCase):
         self.assertFalse((self.state / "policy").exists())
         self.assertEqual("User-owned skill", (skill / "SKILL.md").read_text())
 
+    def test_skills_link_for_every_provider(self):
+        configure.provision(self.state, apply=True)
+        names = sorted(path.name for path in (configure.HERE / "policy/skills").iterdir())
+        self.assertIn("full-stop", names)
+        for worker in ("t3", "opencode"):
+            for directory in (".agents/skills", ".claude/skills"):
+                links = self.state / worker / directory
+                self.assertEqual(names, sorted(path.name for path in links.iterdir()))
+                self.assertEqual("/opt/agent-policy/current/skills/council", str((links / "council").readlink()))
+
+    def test_claude_skill_collision_fails_before_writes(self):
+        skill = self.state / "opencode/.claude/skills/council"
+        skill.mkdir(parents=True)
+        (skill / "SKILL.md").write_text("User-owned skill")
+        with self.assertRaises(ValueError):
+            configure.provision(self.state, apply=True)
+        self.assertFalse((self.state / "policy").exists())
+        self.assertEqual("User-owned skill", (skill / "SKILL.md").read_text())
+
     def test_jsonc_preserves_urls_and_comment_like_strings(self):
         self.assertEqual({"url": "https://host/a//b", "x": "/*text*/"}, configure.jsonc('{/*comment*/"url":"https://host/a//b","x":"/*text*/",}'))
 

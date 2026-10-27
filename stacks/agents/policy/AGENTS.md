@@ -88,6 +88,13 @@ commit, push, schedule tasks, or approve a merge. The optional review container
 reads an exported committed snapshot and has no coding-agent home or credentials.
 Prompt instructions alone do not enforce a read-only boundary.
 
+PR workflow skills (`file-pr`, `babysit-pr`, `leaving-pr-comments`, `modernize`,
+`takeover`, `review-loop`, `council`, `full-stop`) are adapted from tstack and
+stop at a ready PR. "Full send" runs `full-stop`; no NAS agent merges unattended.
+The default council is the latest Claude Opus through Claude Code, the latest
+GPT Sol through Codex, and the configured OpenCode default model, each resolved
+through `orchestrator_capabilities`. Council and review-loop output is advisory.
+
 Use the project's existing local services and workload guard where required.
 The NAS agent containers cannot access the laptop's shared database or CI Docker
 socket. If an integration check needs unavailable services, report the missing

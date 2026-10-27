@@ -39,6 +39,9 @@ def source_checks(source=HERE):
         assert frontmatter["name"] == path.name and frontmatter["description"], "Invalid skill metadata"
         link = source.parents[1] / ".agents/skills" / path.name
         assert link.is_symlink() and link.resolve() == path.resolve(), f"Broken local skill link: {path.name}"
+        for item in path.rglob("*"):
+            assert item.is_dir() or (item.suffix in {".md", ".yaml"} and not item.stat().st_mode & 0o111), \
+                f"Skills carry instructions only, no executable code: {item.relative_to(path)}"
     json.loads((source / "policy/handoff.schema.json").read_text())
     for filename in ("compose.yaml", "compose.opencode.yaml"):
         data = yaml.safe_load((source / filename).read_text())

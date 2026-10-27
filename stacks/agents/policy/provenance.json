@@ -2,6 +2,7 @@
   "ownership": "Locally authored policy and skills; no upstream executable code is vendored.",
   "references": [
     {"repository": "https://github.com/washedupdeveloper/agentic-council", "revision": "9428d4c183fe1e969c111a6bc9cfdf6e73d5bba1", "adopted": "Structured findings and explicit missing-check reporting; no score, fix loop, or dispatcher."},
-    {"repository": "https://github.com/washedupdeveloper/hermes-skills", "revision": "5566e9e5ad9760d3313304ef043ed81ec74b6a30", "adopted": "Versioned skill ownership, drift detection, and restore-verified handoffs; independently authored instructions."}
+    {"repository": "https://github.com/washedupdeveloper/hermes-skills", "revision": "5566e9e5ad9760d3313304ef043ed81ec74b6a30", "adopted": "Versioned skill ownership, drift detection, and restore-verified handoffs; independently authored instructions."},
+    {"repository": "https://github.com/t3dotgg/tstack", "revision": "92e38e2cf677a84a142e8df296861c588542135c", "adopted": "PR filing, comment attribution, babysitting, modernize, takeover, bounded review loop, read-only council and stop-at-ready delivery; rewritten locally. Rejected: unattended merging (full-send), council scores, and the vendored pr-wait script."}
   ]
 }

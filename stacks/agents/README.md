@@ -326,6 +326,27 @@ for terminals. These user-managed versions survive image replacement; image pins
 are bootstrap/rollback versions, not the live provider update channel. Check
 versions and run a real tool-using turn after an update. Do not update a provider
 while it has active turns.
+### Updating T3 itself
+
+T3 updates the same way, without an image rebuild. In a T3 terminal or
+`docker exec -it -u 1100:1100 homelab-agents-t3-1 sh`:
+
+```sh
+update-t3            # latest nightly; or: update-t3 latest | preview | <exact version>
+update-t3 --restart  # same, then restart T3 (drops open sessions briefly)
+```
+
+`update-t3` installs the official `t3` npm launcher into `/home/agent/.local`.
+The launcher downloads the release archive into `~/.t3/runtime/versions/` and
+verifies it against that release's `SHA256SUMS`. The container starts through
+`t3-start`, which runs the user-managed T3 when its `--version` check passes and
+otherwise falls back to the image pin in `packages/t3-nightly.nix`. `--restart`
+stops PID 1; Docker's `unless-stopped` policy starts the container again. Do not
+restart while turns are active. Roll back with `update-t3 <older version>`, or
+remove `/home/agent/.local/bin/t3` to return to the pin. Check `docker logs` for
+the `t3-start: using ...` line and verify a real turn and `preview_open` after
+an update. Move the image pin forward occasionally so the fallback stays recent.
+
 The existing backup excludes `node_modules`, including these npm installations;
 reinstall the CLI packages after a restore before using their saved binary paths.
 Provider authentication and thread data remain in the backed-up home.
@@ -468,10 +489,10 @@ within each workspace before expecting pushes or PRs to work.
 
 The image uses the official T3 nightly CLI archive pinned by version and SHA-256
 in `packages/t3-nightly.nix`, the official OpenCode release pinned by version and
-SHA-256 in `packages/opencode.nix`, and a derivation-based image tag. To update
-either CLI, change its version and archive checksum in the corresponding file.
-CLI updates are deployed through Portainer rather than installed inside a
-running container.
+SHA-256 in `packages/opencode.nix`, and a derivation-based image tag. These pins are
+the bootstrap and fallback versions. Day-to-day T3 and provider updates use the
+user-managed npm installs described above; change a pin's version and checksum
+only to move the fallback forward, then deploy the image through Portainer.
 After changing a package pin or the image definition, build and import a new image
 and update the stack in Portainer. A NixOS rebuild alone does not update containers.
 

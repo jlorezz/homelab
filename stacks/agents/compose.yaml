@@ -7,7 +7,7 @@ services:
     init: true
     user: "1100:1100"
     working_dir: /workspace/homelab
-    command: [t3, serve, --host, 0.0.0.0, --port, "3773", --auto-bootstrap-project-from-cwd]
+    command: [t3-start, serve, --host, 0.0.0.0, --port, "3773", --auto-bootstrap-project-from-cwd]
     ports:
       - "127.0.0.1:3773:3773"
     volumes:

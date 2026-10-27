@@ -17,6 +17,14 @@ let
   workload = pkgs.writeShellScriptBin "agent-workload" ''
     exec ${pkgs.python3}/bin/python3 ${../stacks/agents/workload.py} "$@"
   '';
+  # Prefer the npm-managed T3 in the persistent home; the pin is the fallback.
+  t3Start = pkgs.writeShellScriptBin "t3-start" ''
+    export T3_PINNED=${t3}/bin/t3
+    exec ${pkgs.runtimeShell} ${../stacks/agents/t3-start.sh} "$@"
+  '';
+  updateT3 = pkgs.writeShellScriptBin "update-t3" ''
+    exec ${pkgs.runtimeShell} ${../stacks/agents/update-t3.sh} "$@"
+  '';
   tools = with pkgs; [
     bashInteractive
     coreutils
@@ -37,6 +45,8 @@ let
     runtimes.bun
     workload
     t3
+    t3Start
+    updateT3
     codex
     claude-code
     opencode
@@ -69,7 +79,7 @@ pkgs.dockerTools.buildLayeredImage {
       "FONTCONFIG_FILE=${browserFonts}"
     ];
     Cmd = [
-      "${t3}/bin/t3"
+      "${t3Start}/bin/t3-start"
       "serve"
       "--host"
       "0.0.0.0"

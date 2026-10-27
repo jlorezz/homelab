@@ -1,0 +1,23 @@
+# Add only after provisioning the two dedicated backends with previews/deploy.py.
+services:
+  t3:
+    dns: [1.1.1.1, 9.9.9.9]
+    extra_hosts:
+      # The host relay carries TLS to Tailscale Serve; certificates stay on host.
+      - "nas.tailb80645.ts.net:172.17.0.1"
+    ports:
+      - "127.0.0.1:4101:4101"
+      - "127.0.0.1:4102:4102"
+    volumes:
+      - /var/lib/agent-platform/bin/preview:/opt/nas-preview:ro
+    networks:
+      - default
+      - preview1
+      - preview2
+networks:
+  preview1:
+    external: true
+    name: nas-preview-1_backend
+  preview2:
+    external: true
+    name: nas-preview-2_backend

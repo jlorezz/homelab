@@ -2,6 +2,7 @@
 """Load a Nix-built image and deploy/update its stack through Portainer only."""
 
 import argparse
+import hashlib
 import http.client
 import json
 from pathlib import Path
@@ -84,9 +85,12 @@ def main():
     parser.add_argument("--endpoint", type=int, help="Required when Portainer has multiple environments")
     parser.add_argument("--image-archive", required=True)
     parser.add_argument("--stack-directory", type=Path, default=Path(__file__).parent)
+    parser.add_argument("--portainer-data-directory", type=Path, default=Path("/var/lib/portainer"),
+                        help="Local NAS directory mounted at /data in the Portainer server")
     parser.add_argument("--name", default="homelab-agents")
     parser.add_argument("--wait-seconds", type=int, default=600, help="Maximum time to wait for asynchronous Portainer deployment")
     parser.add_argument("--with-opencode", action="store_true")
+    parser.add_argument("--with-previews", action="store_true", help="Attach provisioned NAS preview backends and private ingress ports")
     parser.add_argument("--opencode-password-file")
     args = parser.parse_args()
 
@@ -102,7 +106,26 @@ def main():
     if len(tags) != 1 or not tags[0].startswith("localhost/homelab-agents:"):
         raise ValueError("Expected the single homelab agent image built by this flake")
     environment = [{"name": "AGENT_IMAGE", "value": tags[0]}]
+    browser_seccomp = json.loads((args.stack_directory / "browser-seccomp.json").read_text())
+    if browser_seccomp.get("defaultAction") != "SCMP_ACT_ERRNO":
+        raise ValueError("Browser seccomp profile must deny unmatched syscalls")
+    if not args.portainer_data_directory.is_dir():
+        raise ValueError("Run on the NAS and select Portainer's existing /data bind directory")
+    profile_bytes = (json.dumps(browser_seccomp, separators=(",", ":")) + "\n").encode()
+    profile_name = hashlib.sha256(profile_bytes).hexdigest() + ".json"
+    profile_directory = args.portainer_data_directory / "agent-profiles"
+    profile_directory.mkdir(mode=0o700, exist_ok=True)
+    (profile_directory / profile_name).write_bytes(profile_bytes)
+    environment.append({"name": "AGENT_BROWSER_SECCOMP", "value": "/data/agent-profiles/" + profile_name})
     compose = yaml.safe_load((args.stack_directory / "compose.yaml").read_text())
+    if args.with_previews:
+        previews = yaml.safe_load((args.stack_directory / "compose.previews.yaml").read_text())
+        for key in ["ports", "volumes"]:
+            compose["services"]["t3"][key].extend(previews["services"]["t3"][key])
+        compose["services"]["t3"]["networks"] = previews["services"]["t3"]["networks"]
+        compose["services"]["t3"]["extra_hosts"] = previews["services"]["t3"]["extra_hosts"]
+        compose["services"]["t3"]["dns"] = previews["services"]["t3"]["dns"]
+        compose["networks"] = {"default": {}, **previews["networks"]}
     if args.with_opencode:
         if not args.opencode_password_file:
             parser.error("--with-opencode requires --opencode-password-file")

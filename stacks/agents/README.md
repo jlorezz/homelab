@@ -134,7 +134,9 @@ Never copy credentials or agent state into that source tree.
 
    Preserve the optional OpenCode service by also passing the documented
    `--with-opencode` and password-file arguments if it is enabled. Retired
-   Hermes is never included in new stack deployments.
+   Hermes is never included in new stack deployments. Once private preview slots
+   are provisioned, also pass `--with-previews` on every replacement so their
+   ports, DNS and external backend networks remain configured.
 
 5. In an idle CI maintenance window, rebuild/redeploy the runner from this source:
 
@@ -267,16 +269,146 @@ delete runner registration, application services or database volumes.
 
 ## Agent deployment and onboarding
 
-Portainer environment 2 owns the `homelab-agents` stack (ID 1). T3 remains on its
-existing pinned image; Hermes has been removed from the stack. The desktop T3
-coordinators and scheduler are separate from the NAS T3 server: their host must
-stay running for queue processing. See COORDINATOR.md for actual bindings.
+Portainer environment 2 owns the `homelab-agents` stack (ID 1). Hermes has been
+removed from the stack. The NAS hosts new, manually started T3 work; the old
+desktop delivery queues remain disabled. See COORDINATOR.md for historical
+bindings and the prerequisites for any future reactivation.
 
 In the T3 Portainer console as user **1100:1100**, authenticate with
 `opencode auth login`, discover models, then run `t3 pair` and pair the NAS at
 <https://nas.tailb80645.ts.net:3773>. Authenticate GitHub independently with
 `gh auth login` when that environment needs repository access. Existing private
 provider and Portainer credentials stay in their owning homes.
+
+## Always-on NAS workspace
+
+Use the NAS environment at <https://nas.tailb80645.ts.net:3773> for new threads
+and connect to it from the Mac. The Windows/WSL environment remains available
+for optional heavy work while the PC is on. Existing desktop thread history,
+worktrees and disabled schedules remain on that environment; connecting the Mac
+does not migrate them. Do not copy live T3 SQLite files between machines.
+
+The image pins T3 and bootstrap provider binaries in `packages/t3-nightly.nix`,
+`packages/codex.nix`, `packages/opencode.nix` and the locked Nixpkgs Claude package.
+Codex needs the complete platform bundle, including `codex-code-mode-host` and
+its resources: a CLI-only install can pass login/version checks but fail every
+tool call. The image also supplies the ELF loader, shared libraries and fonts
+for T3's downloaded Chrome. Verify an actual `preview_open` after upgrades.
+The bootstrap Claude package patches its Linux binary and disables CLI
+self-updates. A generic `curl | bash` installer on the NixOS host can fail at its
+ELF loader and does not install a provider inside T3.
+Authenticate in the worker with
+`docker exec -it -u 1100:1100 homelab-agents-t3-1 claude auth login`, then enable
+Claude Code in the NAS provider settings and verify a real turn. Browser login
+may require opening the printed URL on the Mac and pasting the returned code
+directly into that terminal; never put the code in chat or source control.
+
+For T3's provider Update buttons, use writable installations in the persistent
+home. Nix-store binaries cannot update themselves. In the worker as UID 1100:
+
+```sh
+agent-workload run --queue-timeout 1800 --timeout 600 -- \
+  npm install --global --prefix /home/agent/.local \
+  opencode-ai@latest @openai/codex@latest
+
+# Preserve a native Claude installation that its updater already created.
+if [ ! -e /home/agent/.local/bin/claude ]; then
+  agent-workload run --queue-timeout 1800 --timeout 600 -- \
+    npm install --global --prefix /home/agent/.local @anthropic-ai/claude-code@latest
+fi
+```
+
+Set each NAS provider's **Binary path** to `/home/agent/.local/bin/claude`,
+`/home/agent/.local/bin/opencode` or `/home/agent/.local/bin/codex`. T3 detects npm
+ownership and updates the same prefix; native Claude uses its own updater in
+the writable home. Compose also puts this directory on PATH
+for terminals. These user-managed versions survive image replacement; image pins
+are bootstrap/rollback versions, not the live provider update channel. Check
+versions and run a real tool-using turn after an update. Do not update a provider
+while it has active turns.
+### Updating T3 itself
+
+T3 updates the same way, without an image rebuild. In a T3 terminal or
+`docker exec -it -u 1100:1100 homelab-agents-t3-1 sh`:
+
+```sh
+update-t3            # latest nightly; or: update-t3 latest | preview | <exact version>
+update-t3 --restart  # same, then restart T3 (drops open sessions briefly)
+```
+
+`update-t3` installs the official `t3` npm launcher into `/home/agent/.local`.
+The launcher downloads the release archive into `~/.t3/runtime/versions/` and
+verifies it against that release's `SHA256SUMS`. The container starts through
+`t3-start`, which runs the user-managed T3 when its `--version` check passes and
+otherwise falls back to the image pin in `packages/t3-nightly.nix`. `--restart`
+stops PID 1; Docker's `unless-stopped` policy starts the container again. Do not
+restart while turns are active. Roll back with `update-t3 <older version>`, or
+remove `/home/agent/.local/bin/t3` to return to the pin. Check `docker logs` for
+the `t3-start: using ...` line and verify a real turn and `preview_open` after
+an update. Move the image pin forward occasionally so the fallback stays recent.
+
+The existing backup excludes `node_modules`, including these npm installations;
+reinstall the CLI packages after a restore before using their saved binary paths.
+Provider authentication and thread data remain in the backed-up home.
+
+`browser-seccomp.json` retains the default-deny Moby profile from commit
+[`4b8214fc4971e06172938a1f1554ccff6647ee80`](https://github.com/moby/profiles/blob/4b8214fc4971e06172938a1f1554ccff6647ee80/seccomp/default.json)
+(Apache-2.0), with `clone`, `setns` and `unshare` allowed as described in
+[Playwright's Docker guidance](https://playwright.dev/docs/docker#crawling-and-scraping).
+It also permits `chroot`: with `cap_drop: ALL`, Moby's capability-conditional
+rule otherwise blocks Chrome inside its new user namespace. The syscall allowance
+does not grant host capabilities. This enables Chrome's sandbox with the non-root user,
+dropped capabilities and `no-new-privileges`. `deploy-agents` stages a
+content-addressed profile in `/var/lib/portainer/agent-profiles` on the NAS and
+sets `AGENT_BROWSER_SECCOMP` to its `/data/agent-profiles` path inside Portainer.
+Compose reads a file, not inline JSON. For another Portainer data bind, set
+`--portainer-data-directory` to its host path (mounted at `/data` in Portainer).
+The profile is included in the existing Portainer data backup and can be
+regenerated by `deploy-agents`. Keep browser sandboxing enabled.
+The persistent `/home/agent` holds provider authentication and T3 state. GitHub
+uses HTTPS with `gh auth setup-git`; no host SSH key is mounted into the worker.
+The workspaces are `/workspace/homelab` and `/workspace/dealpipe`.
+`configure-agents` seeds a missing Codex configuration with the opted-in Brain
+bridge and links its instructions to the reviewed policy. It preserves existing
+Codex settings and authentication, and rejects instruction-file collisions.
+Existing Codex configurations need their Brain integration checked separately.
+
+New NAS threads default to separate worktrees. Private Dealpipe previews use the
+operator-provisioned development backends described in
+[previews/README.md](previews/README.md). The NAS launcher claims one of two
+persistent backend slots per checkout, installs locked dependencies and initializes
+only that slot from canonical migrations/seeds. It never retargets the sanitized
+testing stack or mounts a Docker socket. The normal desktop worktree hook still
+requires Docker and must not be imported as the NAS setup command.
+
+Generate a fresh one-time pairing link **when the Mac is ready**, in the T3
+container as UID 1100, with `t3 pair` (see `t3 pair --help` for the public address
+option). Paste it into **Settings → Connections → Add environment** on the Mac.
+Use the NAS HTTPS address, not container localhost. Pairing credentials stay out
+of Git, Brain, issue comments and logs. Each client retains its own connection
+and load-balancing preferences; choose NAS explicitly for normal work and Windows
+explicitly for heavy work. See [T3 remote access](https://github.com/pingdotgg/t3code/blob/main/docs/user/remote-access.md).
+
+All agent subprocesses remain under the container and aggregate cgroup ceilings.
+The parent `agent.slice` has CPU/I/O weight 20, below the default-weight parent
+slices containing CI. `agent-workload` still gates heavy commands against CI;
+weights do not preempt a running build or reserve memory. Test actual CI latency
+before increasing concurrency. A narrow rollout may use persistent
+`systemctl set-property agent.slice CPUWeight=20 IOWeight=20` with the matching
+Nix definition, avoiding activation of unrelated host changes.
+
+Before a container upgrade, save SQLite online backups and the Portainer stack
+in a root-only maintenance directory. Preserve existing network attachments,
+including `dealpipe-testing_testing` if present: an attachment made outside
+Compose is lost during replacement. Deploy through Portainer, then verify the
+image, provider login, a real model turn, Brain access and restart recovery.
+A healthy HTTP page alone proves neither model access nor scheduler execution.
+
+The old queue registry still identifies desktop-bound coordinators. A NAS
+workspace is not permission to re-enable disabled delivery/monitoring tasks.
+Create and validate any new NAS coordinator/schedules separately against the
+current application guide; never reuse old absolute paths or start historical
+Ready cards by replacing the queue baseline.
 
 ## OpenCode account configuration
 
@@ -357,10 +489,10 @@ within each workspace before expecting pushes or PRs to work.
 
 The image uses the official T3 nightly CLI archive pinned by version and SHA-256
 in `packages/t3-nightly.nix`, the official OpenCode release pinned by version and
-SHA-256 in `packages/opencode.nix`, and a derivation-based image tag. To update
-either CLI, change its version and archive checksum in the corresponding file.
-CLI updates are deployed through Portainer rather than installed inside a
-running container.
+SHA-256 in `packages/opencode.nix`, and a derivation-based image tag. These pins are
+the bootstrap and fallback versions. Day-to-day T3 and provider updates use the
+user-managed npm installs described above; change a pin's version and checksum
+only to move the fallback forward, then deploy the image through Portainer.
 After changing a package pin or the image definition, build and import a new image
 and update the stack in Portainer. A NixOS rebuild alone does not update containers.
 
